@@ -1,0 +1,19 @@
+# 统一行尾为 LF，仓库内和工作区一致，避免 git 反复改写。
+* text=auto eol=lf
+
+# 关于 .bat：Windows 批处理用 LF 保存时，唯一已知会出问题的是 goto 标签
+# 的定位。本项目所有 .bat 都不含 goto 和标签（check-env / create-avd /
+# patch-avd-config / start-emulator / install-hypervisor / gradlew），
+# 已实测在 LF 下正常执行。
+#
+# 如果以后往 .bat 里加 goto 或 :label，请先把该文件单独改成 CRLF：
+#     *.bat text eol=crlf
+# 并确认 git checkout 后工作区真的是 CRLF。
+
+*.jar binary
+*.png binary
+*.jpg binary
+*.webp binary
+*.apk binary
+*.keystore binary
+*.jks binary

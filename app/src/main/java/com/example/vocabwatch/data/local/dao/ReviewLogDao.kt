@@ -1,0 +1,59 @@
+package com.example.vocabwatch.data.local.dao
+
+import androidx.room.Dao
+import androidx.room.Insert
+import androidx.room.Query
+import com.example.vocabwatch.data.local.TodaySummary
+import com.example.vocabwatch.data.local.entity.ReviewLogEntity
+import kotlinx.coroutines.flow.Flow
+
+@Dao
+interface ReviewLogDao {
+
+    @Insert
+    suspend fun insert(log: ReviewLogEntity): Long
+
+    /**
+     * 按学习日聚合，而不是按时间戳范围。
+     * reviewDay 在写入时就已经折算好，查询侧不用再关心时区和翻天时刻。
+     */
+    @Query(
+        """
+        SELECT
+            COUNT(*) AS reviewedToday,
+            COALESCE(SUM(CASE WHEN l.grade IN ('GOOD', 'EASY') THEN 1 ELSE 0 END), 0) AS passedToday,
+            COALESCE(SUM(CASE WHEN l.stageBefore = 'NEW' THEN 1 ELSE 0 END), 0) AS newLearnedToday
+        FROM review_logs AS l
+        INNER JOIN words AS w ON w.id = l.wordId
+        WHERE l.reviewDay = :day
+          AND (:bookId IS NULL OR w.bookId = :bookId)
+        """
+    )
+    fun observeTodaySummary(day: Long, bookId: Long?): Flow<TodaySummary>
+
+    @Query(
+        """
+        SELECT COUNT(*) FROM review_logs AS l
+        INNER JOIN words AS w ON w.id = l.wordId
+        WHERE l.reviewDay = :day AND l.stageBefore = 'NEW'
+          AND (:bookId IS NULL OR w.bookId = :bookId)
+        """
+    )
+    suspend fun countNewLearnedOnDay(day: Long, bookId: Long?): Int
+
+    @Query(
+        """
+        SELECT COUNT(*) FROM review_logs AS l
+        INNER JOIN words AS w ON w.id = l.wordId
+        WHERE l.reviewDay = :day AND (:bookId IS NULL OR w.bookId = :bookId)
+        """
+    )
+    suspend fun countReviewsOnDay(day: Long, bookId: Long?): Int
+
+    /** 全部有学习记录的日子，用于算连续天数。不分词书——打卡是全局的。 */
+    @Query("SELECT DISTINCT reviewDay FROM review_logs")
+    fun observeDistinctDays(): Flow<List<Long>>
+
+    @Query("SELECT * FROM review_logs WHERE wordId = :wordId ORDER BY reviewedAt DESC LIMIT :limit")
+    suspend fun historyForWord(wordId: Long, limit: Int): List<ReviewLogEntity>
+}
