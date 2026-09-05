@@ -298,9 +298,11 @@ ease factor 仍用 SM-2 原式 `EF' = EF + (0.1 - (5-q)(0.08 + (5-q)0.02))`，
 `dueAt` 变化而立刻从队列消失，进度显示和翻页都会错乱。所以
 `GetStudySessionUseCase` 一次性取出快照交给 ViewModel 持有。
 
-**队列组装策略放在用例层，仓库只取原料。** 每日新词上限、每日复习上限、
-会话长度、新旧词按 `newCardShare` 交替混排——这些策略都是纯逻辑，
-用假的仓库就能测（9 个用例覆盖额度用完、会话占满、交替排列等分支）。
+**队列组装策略放在用例层，仓库只取原料。** `GetStudySessionUseCase` 返回
+`SessionPlan(newItems, dueItems)`：每日新词额度、每日复习额度在这里扣掉，
+调用方拿到的就是今天真正允许学的量。有意不混排——产品流程是「先浏览选新词、
+再正式背、最后复习到期词」，混在一个列表里表达不出阶段。策略是纯逻辑，
+用假的仓库就能测（6 个用例覆盖额度用完、额度部分消耗、短路不查库等分支）。
 
 **导入词书时给每个词预建一条 `ReviewState`（stage = NEW）。** 代价是每本书
 多几千行小记录，换来的是所有复习查询都能用 INNER JOIN，不必到处处理
@@ -343,7 +345,7 @@ ease factor 仍用 SM-2 原式 `EF' = EF + (0.1 - (5-q)(0.08 + (5-q)0.02))`，
 | 设置存储 | DataStore Preferences 1.0.0 |
 | 异步 | Coroutines 1.7.3（Flow / StateFlow） |
 | 构建 | Gradle 8.2 / AGP 8.2.0 / JDK 17 |
-| SDK | compileSdk 34、minSdk 30、targetSdk 33 |
+| SDK | compileSdk 34、minSdk 30、targetSdk 34（真机 Watch 4 是 Wear OS 5 / API 34） |
 | 测试 | JUnit 4.13.2 + coroutines-test |
 
 `minSdk 30` 覆盖 Wear OS 3/4/5，所以这个 APK 在 Watch4 上无论升到哪个版本都能装。
@@ -357,64 +359,78 @@ Manifest 已声明 `com.google.android.wearable.standalone=true`，作为独立�
 
 ## 十、验证状态
 
-已在命令行实际验证过的：
+命令行与真机/模拟器都实际跑过：
 
 | 项 | 结果 |
 |---|---|
-| `gradlew clean test assembleDebug` | **BUILD SUCCESSFUL in 25s** |
-| 编译警告 | **0 个**（原先 4 个弃用警告已随包名迁移消除） |
-| 单元测试 | **34 个全部通过** |
+| `gradlew test assembleDebug` | **BUILD SUCCESSFUL**，0 编译警告 |
+| 单元测试 | **42 个全部通过** |
 | Room 建表 SQL | 已核对 `app/schemas/.../1.json`，4 张表、外键 CASCADE、唯一索引均正确 |
-| KSP 生成物 | `AppDatabase_Impl` + 4 个 `*Dao_Impl` 全部生成 |
-| 词书资产 | `assets/wordbooks/cet4-core.json`（7.2 KB / 30 词）已打进 APK |
-| APK | 19.5 MB，`app/build/outputs/apk/debug/app-debug.apk` |
+| 真机 Watch 4（Wear OS 5 / API 34 / 450×450@340dpi） | 无线 ADB 安装运行正常，冷启动约 1.3s |
+| 模拟器 | AVD 已改成和真机一致的 450×450、340dpi、圆屏（`patch-avd-config.ps1`） |
+
+真机/模拟器上逐项点过的学习流程：
+
+| 步骤 | 结果 |
+|---|---|
+| 首页进度 / 开始学习按钮 | 圆屏内完整可见，不再被弧形遮罩裁掉 |
+| 浏览选词：右滑「已学过」 | 按 EASY 落库，数据库 `review_logs` 有记录 |
+| 浏览选词：上滑「不认识」 | 不写库，只进待背列表；选够额度出「选够了 / 开始背单词」提示页 |
+| 浏览选词：上拉露例句 | 越过阈值后例句显示并保持，松手卡片回弹 |
+| 正式背单词：点击翻面 | 3D 翻面动画正常 |
+| 翻面后右滑「会」/ 上滑「不会」 | GOOD / AGAIN 落库；不会的卡换考法隔两张重排 |
+| 拼写卡 | 乱序字母点选；拼错抖动后按「不会」落库并重排，拼对按「会」前进 |
+| 双击撤销 | 原卡回队首、重排的那张被摘掉、`review_logs` 里那条记录被删除（查库确认） |
+| 学习页侧滑返回 | 已被禁用（`SwipeToDismissBoxState.confirmStateChange` 拦截），返回键可退出且进度保留 |
 
 测试分布：
 
 ```
 Sm2SchedulerTest             16 个   SM-2 每档评分的具体天数、ease 上下限、间隔单调增长、纯函数性
-GetStudySessionUseCaseTest    9 个   每日额度、会话截断、新旧词交替、额度用尽时的短路
+StudyFlowTest                11 个   浏览选词/正式/复习三阶段、答错重排、双击撤销、拼写卡字母
 DayIndexTest                  9 个   连续天数、凌晨 4 点翻天边界
+GetStudySessionUseCaseTest    6 个   每日额度、额度部分消耗、额度用尽时的短路
 ```
 
 跑测试：`gradlew.bat test`
 
-> **尚未验证的**：真机/模拟器上的实际运行。AEHD 驱动没装，模拟器起不来，
-> 所以界面布局、旋转表圈手感、数据库首启导入这些都还只是「编译通过 +
-> 单测通过」，没有跑起来看过。装完驱动重启后这是第一件要做的事。
+> **脚本化手势验证请在模拟器上做。** 真机息屏很快，屏幕熄灭时注入的
+> `input swipe` 会产生乱序位移（实测出现过一次上滑被识别成右滑），
+> 每次注入前都得先 `input keyevent 224` 唤醒并等动画跑完。
 
 ---
 
 ## 十一、已知问题与后续
 
-**阻塞项**
+**产品规格里还没做的部分**
 
-1. **AEHD 未安装** —— 见第一节。装不了就起不了模拟器，界面无法实测。
+1. **首页 / 我的页左右滑动切换。** 规格要求两页之间横滑切换，当前是
+   导航栈推入。改成 `HorizontalPager` 时要注意和学习页的手势隔离。
+2. **搜索页与离线词典。**  fuzzy 搜索、搜索历史、详情页、错题本入口都还没做。
+   词典源已调研定案：ECDICT（MIT，约 76 万词条），缺例句和近义反义——
+   例句按产品决定**只用词书自带**，近义反义**不做**。
+3. **我的页。** 头像、昵称、连续天数展示、词书管理（导出/删除/体积）、
+   每日新词设置、数据导入导出。`SettingsRepository` 的 setter 已就绪，缺 UI。
+4. **首次引导流程。** 选词书 → 每日词量 → 可选提醒时间 → 欢迎页。
+5. **夜间模式开关。** AMOLED 省电取向的深色主题目前就是默认主题，
+   还没有可切换的日间模式。
+6. **词书转换网站暂缓。** 纯前端、不接 AI 的转换工具，等软件本体稳定后再做。
 
-**框架有意留下的简化，需要讨论后再定**
+**框架层面**
 
-2. **答错的卡片不会插回本次会话。** Anki 会把 lapsed 的卡在本次会话内
-   重新排到后面再问一次，当前实现是直接前进到下一张。改起来不难
-   （在 `StudyViewModel.grade()` 里把卡片重新插入 `queue`），但会让
-   `index/total` 的进度显示变得会跳动，得先想清楚怎么呈现。
-3. **评分只有四档，且没有「撤销」。** 手表上误触成本高，可能需要加
-   长按撤销或者二次确认。
-4. **每日上限只能在统计页看到，没有 UI 能改。** `SettingsRepository`
-   的 `setDailyNewLimit` / `setDailyReviewLimit` 已经写好，缺一个设置页。
-5. **词书只有内置的一本，没有导入入口。** 往 `assets/wordbooks/` 丢 JSON
-   再登记到 `SeedDataProvider.ASSETS` 就能加，但没有从手表或手机端
-   导入自定义词书的能力。
-6. **没有发音。** 手表上背单词大概率需要 TTS 或音频，当前完全没做。
+7. **每日上限没有 UI 能改。** `setDailyNewLimit` / `setDailyReviewLimit`
+   已写好，缺设置页（并入第 3 项）。
+8. **没有发音。** 手表上背单词大概率需要 TTS 或音频，当前完全没做。
+9. **复习阶段的卡型只有两种**（英选中 / 中选英），规格如此；若以后想加
+   拼写复习，`kindsFor()` 一行就能放开。
 
 **环境层面**
 
-7. **工具链偏旧** —— AGP 8.2.0 / Gradle 8.2 / Kotlin 1.9.20 / Wear Compose 1.2.1
-   是 2023 年的版本，配 Studio 2026.1.3 可能在 Sync 时报版本过低。
-   命令行构建正常。若要升级，`domain` 和 `data` 两层基本不用动，
-   只有 `ui/` 的 import 需要跟着 Wear Compose 1.3+ 调整
-   （`RotarySupport.kt` 可整个删掉换成官方 `rotaryScrollable`）。
-8. **内存偏紧** —— 15.8 GB 总内存常只剩 5–6 GB 可用。模拟器（1.5 GB）+
-   Gradle 守护进程（2 GB）+ Studio（2–4 GB）同时开会吃紧。不用时跑
-   `gradlew.bat --stop` 释放。
-9. **项目还没进版本库** —— `E:\WearOS-VocabProject` 目前不是 git 仓库，
-   `app/schemas/` 这类需要长期追踪的文件没有历史记录。
+10. **工具链偏旧** —— AGP 8.2.0 / Gradle 8.2 / Kotlin 1.9.20 / Wear Compose 1.2.1
+    是 2023 年的版本，配 Studio 2026.1.3 可能在 Sync 时报版本过低。
+    命令行构建正常。若要升级，`domain` 和 `data` 两层基本不用动，
+    只有 `ui/` 的 import 需要跟着 Wear Compose 1.3+ 调整
+    （`RotarySupport.kt` 可整个删掉换成官方 `rotaryScrollable`）。
+11. **内存偏紧** —— 15.8 GB 总内存常只剩 5–6 GB 可用。模拟器（1.5 GB）+
+    Gradle 守护进程（2 GB）+ Studio（2–4 GB）同时开会吃紧。不用时跑
+    `gradlew.bat --stop` 释放。

@@ -9,6 +9,7 @@ import com.example.vocabwatch.data.local.entity.ReviewLogEntity
 import com.example.vocabwatch.data.mapper.toDomain
 import com.example.vocabwatch.data.mapper.toEntity
 import com.example.vocabwatch.domain.model.Grade
+import com.example.vocabwatch.domain.model.ReviewState
 import com.example.vocabwatch.domain.model.StudyItem
 import com.example.vocabwatch.domain.model.StudyStats
 import com.example.vocabwatch.domain.repository.StudyRepository
@@ -92,5 +93,13 @@ class StudyRepositoryImpl(
                 elapsedMillis = elapsedMillis
             )
         )
+    }
+
+    override suspend fun restoreStateAndDropLastLog(
+        wordId: Long,
+        restored: ReviewState
+    ): Unit = database.withTransaction {
+        reviewStateDao.upsert(restored.toEntity())
+        reviewLogDao.deleteLatestForWord(wordId)
     }
 }

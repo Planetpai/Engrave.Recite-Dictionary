@@ -18,10 +18,10 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * 队列组装策略的测试。
+ * 会话计划的测试。
  *
- * 用假的 StudyRepository 提供原料，验证的是策略本身：
- * 每日上限怎么卡、会话长度怎么截断、新词按什么比例插进去。
+ * 用假的 StudyRepository 提供原料，验证策略本身：每日额度怎么卡、
+ * 新词和到期词各取多少、额度用完时是否还去查库。
  */
 class GetStudySessionUseCaseTest {
 
@@ -32,6 +32,8 @@ class GetStudySessionUseCaseTest {
         word = Word(id = id, bookId = 1L, term = "w$id", meaning = "m$id"),
         state = ReviewState(wordId = id, stage = stage)
     )
+
+    private fun newItems(ids: LongRange) = ids.map { item(it, LearningStage.NEW) }
 
     /** 记录被请求过的 limit，用来断言用例没有多要数据 */
     private class FakeStudyRepository(
@@ -56,6 +58,7 @@ class GetStudySessionUseCaseTest {
         }
 
         override suspend fun countNewLearnedToday(bookId: Long?): Int = newLearnedToday
+
         override suspend fun countReviewsToday(bookId: Long?): Int = reviewsToday
 
         override suspend fun persistReview(
@@ -64,131 +67,82 @@ class GetStudySessionUseCaseTest {
             outcome: ReviewOutcome,
             elapsedMillis: Long
         ) = Unit
+
+        override suspend fun restoreStateAndDropLastLog(wordId: Long, restored: ReviewState) = Unit
     }
 
-    private val config = StudyQueueConfig(
-        dailyNewLimit = 5,
-        dailyReviewLimit = 100,
-        sessionSize = 10,
-        newCardShare = 0.4
-    )
+    private val config = StudyQueueConfig(dailyNewLimit = 5, dailyReviewLimit = 100)
 
     @Test
-    fun `到期卡不多时 - 剩余位置用来放新词`() = runTest {
+    fun `新词和到期词分别按各自额度取出`() = runTest {
         val repo = FakeStudyRepository(
             due = (1L..3L).map { item(it) },
-            availableNew = (100L..120L).map { item(it, LearningStage.NEW) }
+            availableNew = newItems(100L..120L)
         )
         val useCase = GetStudySessionUseCase(repo, timeProvider)
 
-        val session = useCase(config)
+        val plan = useCase(config)
 
-        assertEquals(3 + 4, session.size)
-        assertEquals(3, session.count { !it.isNew })
-        assertEquals(4, session.count { it.isNew })
+        assertEquals(5, plan.newItems.size)
+        assertEquals(3, plan.dueItems.size)
     }
 
     @Test
-    fun `新词数量受每日新词上限约束`() = runTest {
-        val repo = FakeStudyRepository(
-            due = emptyList(),
-            availableNew = (100L..150L).map { item(it, LearningStage.NEW) }
-        )
-        val useCase = GetStudySessionUseCase(repo, timeProvider)
-
-        val session = useCase(config)
-
-        // sessionSize 10 × newCardShare 0.4 = 4，再被 dailyNewLimit 5 卡住，取小者
-        assertEquals(4, session.size)
-        assertEquals(4, repo.lastNewLimit)
-    }
-
-    @Test
-    fun `今天新词额度用完 - 一张新词都不再出`() = runTest {
+    fun `今天新词额度用完 - 不取新词也不查数据库`() = runTest {
         val repo = FakeStudyRepository(
             due = (1L..2L).map { item(it) },
-            availableNew = (100L..120L).map { item(it, LearningStage.NEW) },
+            availableNew = newItems(100L..120L),
             newLearnedToday = 5
         )
         val useCase = GetStudySessionUseCase(repo, timeProvider)
 
-        val session = useCase(config)
+        val plan = useCase(config)
 
-        assertEquals(2, session.size)
-        assertTrue(session.none { it.isNew })
+        assertTrue(plan.newItems.isEmpty())
+        assertEquals(2, plan.dueItems.size)
+        assertEquals(-1, repo.lastNewLimit)
     }
 
     @Test
     fun `今天复习额度用完 - 只出新词`() = runTest {
         val repo = FakeStudyRepository(
             due = (1L..8L).map { item(it) },
-            availableNew = (100L..120L).map { item(it, LearningStage.NEW) },
+            availableNew = newItems(100L..120L),
             reviewsToday = 100
         )
         val useCase = GetStudySessionUseCase(repo, timeProvider)
 
-        val session = useCase(config)
+        val plan = useCase(config)
 
-        assertTrue(session.all { it.isNew })
-        assertEquals(-1, repo.lastDueLimit) // 额度为 0 时压根不该去查数据库
+        assertEquals(5, plan.newItems.size)
+        assertTrue(plan.dueItems.isEmpty())
+        assertEquals(-1, repo.lastDueLimit)
     }
 
     @Test
-    fun `会话长度不会超过 sessionSize`() = runTest {
+    fun `额度部分消耗 - 只取剩余额度`() = runTest {
         val repo = FakeStudyRepository(
-            due = (1L..50L).map { item(it) },
-            availableNew = (100L..150L).map { item(it, LearningStage.NEW) }
+            due = (1L..80L).map { item(it) },
+            availableNew = newItems(100L..150L),
+            newLearnedToday = 3,
+            reviewsToday = 40
         )
         val useCase = GetStudySessionUseCase(repo, timeProvider)
 
-        val session = useCase(config)
+        val plan = useCase(config)
 
-        assertEquals(10, session.size)
+        assertEquals(2, plan.newItems.size)
+        assertEquals(2, repo.lastNewLimit)
+        assertEquals(60, plan.dueItems.size)
+        assertEquals(60, repo.lastDueLimit)
     }
 
     @Test
-    fun `到期卡已经占满会话 - 不再塞新词`() = runTest {
-        val full = StudyQueueConfig(
-            dailyNewLimit = 5,
-            dailyReviewLimit = 100,
-            sessionSize = 4,
-            newCardShare = 0.4
-        )
-        val repo = FakeStudyRepository(
-            due = (1L..10L).map { item(it) },
-            availableNew = (100L..120L).map { item(it, LearningStage.NEW) }
-        )
-        val useCase = GetStudySessionUseCase(repo, timeProvider)
-
-        val session = useCase(full)
-
-        assertEquals(4, session.size)
-        assertTrue(session.none { it.isNew })
-    }
-
-    @Test
-    fun `新旧词交替排列 而不是把新词全堆在末尾`() = runTest {
-        val repo = FakeStudyRepository(
-            due = (1L..6L).map { item(it) },
-            availableNew = (100L..105L).map { item(it, LearningStage.NEW) }
-        )
-        val useCase = GetStudySessionUseCase(repo, timeProvider)
-
-        val session = useCase(config)
-
-        val lastNewIndex = session.indexOfLast { it.isNew }
-        assertTrue(
-            "新词应当出现在会话中间而不是全堆在末尾，实际最后一张新词在下标 $lastNewIndex / ${session.size}",
-            lastNewIndex < session.size - 1
-        )
-    }
-
-    @Test
-    fun `没有任何可学内容 - 返回空队列`() = runTest {
+    fun `没有任何可学内容 - 计划为空`() = runTest {
         val repo = FakeStudyRepository()
         val useCase = GetStudySessionUseCase(repo, timeProvider)
 
-        assertTrue(useCase(config).isEmpty())
+        assertTrue(useCase(config).isEmpty)
     }
 
     @Test

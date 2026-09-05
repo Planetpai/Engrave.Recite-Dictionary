@@ -1,6 +1,7 @@
 package com.example.vocabwatch.domain.repository
 
 import com.example.vocabwatch.domain.model.Grade
+import com.example.vocabwatch.domain.model.ReviewState
 import com.example.vocabwatch.domain.model.StudyItem
 import com.example.vocabwatch.domain.model.StudyQueueConfig
 import com.example.vocabwatch.domain.model.StudyStats
@@ -35,6 +36,12 @@ interface StudyRepository {
         outcome: ReviewOutcome,
         elapsedMillis: Long
     )
+
+    /**
+     * 会话内撤销：把调度状态恢复成 [restored]，并删掉该词最新的一条复习日志。
+     * 同一事务，保证状态和日志不会只回滚一半。
+     */
+    suspend fun restoreStateAndDropLastLog(wordId: Long, restored: ReviewState)
 }
 
 /** 用户可调的学习设置，存在 DataStore 里。 */

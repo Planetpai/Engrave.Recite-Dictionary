@@ -26,7 +26,6 @@ class SettingsRepositoryImpl(context: Context) : SettingsRepository {
     private object Keys {
         val DAILY_NEW_LIMIT = intPreferencesKey("daily_new_limit")
         val DAILY_REVIEW_LIMIT = intPreferencesKey("daily_review_limit")
-        val SESSION_SIZE = intPreferencesKey("session_size")
         val ACTIVE_BOOK_ID = longPreferencesKey("active_book_id")
     }
 
@@ -35,8 +34,6 @@ class SettingsRepositoryImpl(context: Context) : SettingsRepository {
         StudyQueueConfig(
             dailyNewLimit = prefs[Keys.DAILY_NEW_LIMIT] ?: defaults.dailyNewLimit,
             dailyReviewLimit = prefs[Keys.DAILY_REVIEW_LIMIT] ?: defaults.dailyReviewLimit,
-            sessionSize = prefs[Keys.SESSION_SIZE] ?: defaults.sessionSize,
-            newCardShare = defaults.newCardShare,
             activeBookId = prefs[Keys.ACTIVE_BOOK_ID]
         )
     }

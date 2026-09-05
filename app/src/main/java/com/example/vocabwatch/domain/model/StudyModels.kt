@@ -21,10 +21,6 @@ data class StudyQueueConfig(
     val dailyNewLimit: Int = 10,
     /** 每天最多复习多少个到期词 */
     val dailyReviewLimit: Int = 100,
-    /** 一次会话最多取多少张卡片，手表上不宜太长 */
-    val sessionSize: Int = 20,
-    /** 新词和到期词混排时，新词最多占的比例 */
-    val newCardShare: Double = 0.4,
     /** 只学这本词书；null 表示全部词书 */
     val activeBookId: Long? = null
 ) {

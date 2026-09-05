@@ -56,4 +56,22 @@ interface ReviewLogDao {
 
     @Query("SELECT * FROM review_logs WHERE wordId = :wordId ORDER BY reviewedAt DESC LIMIT :limit")
     suspend fun historyForWord(wordId: Long, limit: Int): List<ReviewLogEntity>
+
+    /**
+     * 删掉某个词最新的一条复习日志。
+     * 会话内撤销时配合「恢复旧调度状态」一起用，保证统计不会把已撤销的
+     * 那次评分算进去。同 reviewedAt 时取 id 更大的，避免并列时删错。
+     */
+    @Query(
+        """
+        DELETE FROM review_logs
+        WHERE id = (
+            SELECT id FROM review_logs
+            WHERE wordId = :wordId
+            ORDER BY reviewedAt DESC, id DESC
+            LIMIT 1
+        )
+        """
+    )
+    suspend fun deleteLatestForWord(wordId: Long)
 }

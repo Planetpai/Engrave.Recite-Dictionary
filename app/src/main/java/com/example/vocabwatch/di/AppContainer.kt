@@ -15,6 +15,7 @@ import com.example.vocabwatch.domain.srs.SystemTimeProvider
 import com.example.vocabwatch.domain.srs.TimeProvider
 import com.example.vocabwatch.domain.usecase.GetStudySessionUseCase
 import com.example.vocabwatch.domain.usecase.SubmitReviewUseCase
+import com.example.vocabwatch.domain.usecase.UndoReviewUseCase
 
 /**
  * 手写的依赖容器。
@@ -63,6 +64,10 @@ class AppContainer(private val context: Context) {
 
     val submitReview: SubmitReviewUseCase by lazy {
         SubmitReviewUseCase(studyRepository, scheduler, timeProvider)
+    }
+
+    val undoReview: UndoReviewUseCase by lazy {
+        UndoReviewUseCase(studyRepository)
     }
 
     val seedDataProvider: SeedDataProvider by lazy {

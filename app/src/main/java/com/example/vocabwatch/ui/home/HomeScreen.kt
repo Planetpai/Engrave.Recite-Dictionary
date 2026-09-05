@@ -1,8 +1,10 @@
 package com.example.vocabwatch.ui.home
 
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -48,7 +50,13 @@ fun HomeScreen(
     ) {
         ScalingLazyColumn(
             modifier = Modifier.fillMaxSize(),
-            state = listState
+            state = listState,
+            // 圆屏的上下边缘是弧形遮罩，贴底的整宽按钮会被裁掉。
+            // 留出安全区让最后一个元素停在可视的圆形区域内。
+            contentPadding = PaddingValues(
+                top = 20.dp,
+                bottom = 32.dp
+            )
         ) {
             item {
                 ListHeader {
@@ -68,7 +76,7 @@ fun HomeScreen(
                     } else {
                         formatProgress(state.stats.learnedWords, state.stats.totalWords)
                     },
-                    style = MaterialTheme.typography.display1,
+                    style = MaterialTheme.typography.title1,
                     textAlign = TextAlign.Center,
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -89,7 +97,7 @@ fun HomeScreen(
                     onClick = onStartStudy,
                     enabled = !state.isLoading && state.hasAnythingToStudy,
                     modifier = Modifier
-                        .fillMaxWidth()
+                        .width(140.dp)
                         .padding(top = 8.dp)
                 ) {
                     Text(
@@ -102,7 +110,7 @@ fun HomeScreen(
                 Chip(
                     label = { Text("学习统计") },
                     onClick = onOpenStats,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.width(140.dp)
                 )
             }
 
