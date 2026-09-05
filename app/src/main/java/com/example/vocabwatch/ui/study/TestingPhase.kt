@@ -8,10 +8,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 
 /**
- * 正式背单词与复习：点一下翻面，右滑「会」、上滑「不会」，双击撤销。
+ * 正式背单词与复习：点一下翻面，左滑「会」、上滑「不会」，双击撤销。
  *
- * 三种考法（英选中、中选英、拼写）由状态机按位置轮换分配，答错会换一种
- * 考法隔两张重来。拼写卡没有背面，靠点字母作答，所以翻面和滑动都不生效。
+ * 左滑而不是右滑：Wear 的系统返回手势是从左缘右滑，判定手势和它同向
+ * 太容易误触退出。三种考法（英选中、中选英、拼写）由状态机按位置轮换，
+ * 答错会换一种考法隔两张重来。拼写卡没有背面，靠点字母作答。
  */
 @Composable
 internal fun TestingPhase(state: StudyUiState.Testing, viewModel: StudyViewModel) {
@@ -24,11 +25,14 @@ internal fun TestingPhase(state: StudyUiState.Testing, viewModel: StudyViewModel
 
         StudyCardDeck(
             cardKey = card.uid,
-            behindCount = state.behindCount,
+            behindFaces = state.nextCards.map { next ->
+                { BehindTestFace(next) }
+            },
             flipped = card.flipped,
+            parked = false,
             onTap = viewModel::flip,
             onDoubleTap = viewModel::undo,
-            onSwipeRight = if (gradeEnabled) {
+            onSwipeLeft = if (gradeEnabled) {
                 { viewModel.answer(Verdict.KNOWN) }
             } else {
                 null
@@ -38,7 +42,7 @@ internal fun TestingPhase(state: StudyUiState.Testing, viewModel: StudyViewModel
             } else {
                 null
             },
-            rightHint = "会 →",
+            leftHint = "← 会",
             upHint = "↑ 不会",
             undoReplay = state.undoReplay,
             modifier = Modifier

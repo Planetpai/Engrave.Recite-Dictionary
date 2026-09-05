@@ -96,11 +96,19 @@ class StudyViewModel(
 
     // ------------------------------------------------------------------ 用户操作
 
-    /** 上拉卡片露出例句，只在浏览阶段有意义 */
-    fun revealExample() {
+    /** 上拉越过阈值：卡片停到上方，灰线下面露出例句 */
+    fun openReveal() {
         val state = _uiState.value as? StudyUiState.Browsing ?: return
         if (!state.card.exampleRevealed) {
             _uiState.value = state.copy(card = state.card.copy(exampleRevealed = true))
+        }
+    }
+
+    /** 从上往下拉：卡片回到原位，例句收起，继续背这个词 */
+    fun closeReveal() {
+        val state = _uiState.value as? StudyUiState.Browsing ?: return
+        if (state.card.exampleRevealed) {
+            _uiState.value = state.copy(card = state.card.copy(exampleRevealed = false))
         }
     }
 
@@ -170,7 +178,7 @@ class StudyViewModel(
 
     private fun answerBrowse(verdict: Verdict) {
         val item = browseQueue.removeFirst()
-        val direction = if (verdict == Verdict.KNOWN) SwipeDirection.RIGHT else SwipeDirection.UP
+        val direction = if (verdict == Verdict.KNOWN) SwipeDirection.LEFT else SwipeDirection.UP
 
         if (verdict == Verdict.UNKNOWN) {
             // 「不认识」这一步不写库：真正的第一次评分发生在正式测试阶段
@@ -209,6 +217,7 @@ class StudyViewModel(
         _uiState.value = StudyUiState.Browsing(
             card = BrowseCard(browseQueue.first(), exampleRevealed = false),
             behindCount = (browseQueue.size - 1).coerceIn(0, MAX_BEHIND),
+            nextItems = browseQueue.toList().drop(1).take(MAX_BEHIND),
             remaining = browseQueue.size,
             selectedCount = selected.size,
             selectionTarget = selectionTarget,
@@ -246,7 +255,7 @@ class StudyViewModel(
     private fun answerTest(verdict: Verdict) {
         val card = testQueue.removeFirst()
         val item = card.item
-        val direction = if (verdict == Verdict.KNOWN) SwipeDirection.RIGHT else SwipeDirection.UP
+        val direction = if (verdict == Verdict.KNOWN) SwipeDirection.LEFT else SwipeDirection.UP
         val grade = if (verdict == Verdict.KNOWN) Grade.GOOD else Grade.AGAIN
         val elapsed = elapsed()
 
@@ -287,6 +296,7 @@ class StudyViewModel(
             phase = phase,
             card = testQueue.first(),
             behindCount = (testQueue.size - 1).coerceIn(0, MAX_BEHIND),
+            nextCards = testQueue.toList().drop(1).take(MAX_BEHIND),
             remaining = testQueue.size,
             undoReplay = replay
         )

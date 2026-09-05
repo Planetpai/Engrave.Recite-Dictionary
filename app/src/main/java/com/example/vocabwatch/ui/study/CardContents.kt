@@ -9,6 +9,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.wear.compose.material.MaterialTheme
 import androidx.wear.compose.material.Text
+import com.example.vocabwatch.domain.model.Word
 
 /** 卡片正面的主文字：单词，或者中文释义。 */
 @Composable
@@ -51,16 +52,35 @@ internal fun CardPhonetic(text: String) {
 }
 
 @Composable
-internal fun CardCaption(text: String) {
+internal fun CardCaption(text: String, maxLines: Int = 3) {
     Text(
         text = text,
         style = MaterialTheme.typography.caption2,
         color = MaterialTheme.colors.onSurfaceVariant,
         textAlign = TextAlign.Center,
-        maxLines = 3,
+        maxLines = maxLines,
         overflow = TextOverflow.Ellipsis,
         modifier = Modifier
             .fillMaxWidth()
             .padding(top = 4.dp)
     )
+}
+
+/** 叠卡下层：下一个词的单词 + 音标，上拉当前卡时能直接看到 */
+@Composable
+internal fun BehindWordFace(word: Word) {
+    CardTitle(word.term)
+    word.phonetic?.let { CardPhonetic(it) }
+}
+
+/** 叠卡下层：下一张卡的提示面，只看不答 */
+@Composable
+internal fun BehindTestFace(card: TestCard) {
+    val word = card.item.word
+    if (card.kind == CardKind.EN_TO_ZH) {
+        CardTitle(word.term)
+        word.phonetic?.let { CardPhonetic(it) }
+    } else {
+        CardBody(word.meaning)
+    }
 }

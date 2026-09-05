@@ -3,11 +3,12 @@ package com.example.vocabwatch.ui.study
 import com.example.vocabwatch.domain.model.StudyItem
 
 /** 滑动方向。既代表用户手势，也代表撤销时卡片该从哪个方向飞回来。 */
-enum class SwipeDirection { RIGHT, UP }
+enum class SwipeDirection { LEFT, RIGHT, UP }
 
 /**
  * 二元判定。浏览阶段是「已学过 / 不认识」，正式与复习阶段是「会 / 不会」。
- * 手势统一：右滑 = KNOWN，上滑 = UNKNOWN。
+ * 手势统一：从右往左滑 = KNOWN（避开 Wear 左缘右滑返回的系统手势），
+ * 上滑 = UNKNOWN。
  */
 enum class Verdict { KNOWN, UNKNOWN }
 
@@ -41,10 +42,12 @@ sealed interface StudyUiState {
     /** 今天既没有新词也没有到期复习 */
     data object Empty : StudyUiState
 
-    /** 浏览选词：右滑已学过，上滑不认识，上拉看例句 */
+    /** 浏览选词：左滑已学过，上滑不认识，上拉看例句 */
     data class Browsing(
         val card: BrowseCard,
         val behindCount: Int,
+        /** 队列里接下来的词，供叠卡下层预览，不含当前这张 */
+        val nextItems: List<StudyItem>,
         /** 含当前这张，还剩多少个词要过一遍 */
         val remaining: Int,
         val selectedCount: Int,
@@ -64,6 +67,8 @@ sealed interface StudyUiState {
         val phase: TestPhase,
         val card: TestCard,
         val behindCount: Int,
+        /** 队列里接下来的卡，供叠卡下层预览，不含当前这张 */
+        val nextCards: List<TestCard>,
         val remaining: Int,
         val undoReplay: SwipeDirection?
     ) : StudyUiState

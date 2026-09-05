@@ -1,10 +1,13 @@
 package com.example.vocabwatch.ui.study
 
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -12,6 +15,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.wear.compose.material.Button
@@ -91,18 +95,24 @@ fun StudyScreen(modifier: Modifier = Modifier) {
     }
 }
 
-/** 顶部一行进度/阶段说明。 */
+/** 顶部一行进度/阶段说明。停驻露例句时整行收起，把中段让给卡片和例句。 */
 @Composable
-internal fun StudyHeader(text: String) {
-    Text(
-        text = text,
-        style = MaterialTheme.typography.caption2,
-        color = MaterialTheme.colors.onSurfaceVariant,
-        textAlign = TextAlign.Center,
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(top = 4.dp)
-    )
+internal fun StudyHeader(text: String, collapsed: Boolean = false) {
+    val headerHeight by animateDpAsState(if (collapsed) 0.dp else 18.dp, label = "headerHeight")
+    val headerAlpha by animateFloatAsState(if (collapsed) 0f else 1f, label = "headerAlpha")
+    Box(Modifier.fillMaxWidth().height(headerHeight)) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.caption2,
+            color = MaterialTheme.colors.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+            maxLines = 1,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 4.dp)
+                .graphicsLayer { alpha = headerAlpha }
+        )
+    }
 }
 
 @Composable

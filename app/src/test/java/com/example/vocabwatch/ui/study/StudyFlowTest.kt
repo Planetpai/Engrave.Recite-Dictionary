@@ -166,7 +166,7 @@ class StudyFlowTest {
         val repo = FakeStudyRepository(availableNew = newItems(1L..3L))
         val vm = viewModel(repo)
 
-        vm.revealExample()
+        vm.openReveal()
 
         assertTrue(vm.browsing().card.exampleRevealed)
         assertEquals(3, vm.browsing().remaining)
@@ -311,5 +311,32 @@ class StudyFlowTest {
         assertEquals(0, finished.reviewCount)
         assertEquals(1, finished.againCount)
         assertTrue(repo.restored.isEmpty())
+    }
+
+    @Test
+    fun `上拉停驻露例句 - 下拉复位且不动队列`() {
+        val repo = FakeStudyRepository(availableNew = newItems(1L..3L))
+        val vm = viewModel(repo, dailyNewLimit = 3)
+
+        vm.openReveal()
+        assertTrue(vm.browsing().card.exampleRevealed)
+        assertEquals(3, vm.browsing().remaining)
+
+        vm.closeReveal()
+        assertTrue(!vm.browsing().card.exampleRevealed)
+        assertEquals(1L, vm.browsing().card.item.wordId)
+    }
+
+    @Test
+    fun `左滑已学过 - 撤销时卡片从左边飞回`() {
+        val repo = FakeStudyRepository(availableNew = newItems(1L..3L))
+        val vm = viewModel(repo, dailyNewLimit = 3)
+
+        vm.answer(Verdict.KNOWN)
+        vm.undo()
+
+        assertEquals(SwipeDirection.LEFT, vm.browsing().undoReplay)
+        assertEquals(1L, vm.browsing().card.item.wordId)
+        assertEquals(listOf(1L), repo.restored)
     }
 }

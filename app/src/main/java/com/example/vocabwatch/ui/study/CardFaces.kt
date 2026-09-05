@@ -24,6 +24,9 @@ internal val DeckEdgeColor = Color(0xFF1D222A)
 internal val HintBackgroundColor = Color(0xFF252B34)
 internal val HintTextColor = Color(0xFFB9C4D0)
 
+/** 停驻露例句时，卡片和例句之间那条灰线 */
+internal val RevealDividerColor = Color(0xFF3A414B)
+
 /** 一张卡片的表面：圆角、暗底、内容居中。正反面共用。 */
 @Composable
 internal fun CardFace(

@@ -9,6 +9,7 @@ import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.waitForUpOrCancellation
+import androidx.compose.runtime.MutableState
 import androidx.compose.ui.input.pointer.PointerInputScope
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -18,12 +19,16 @@ import kotlin.math.abs
 
 /** 卡片手势的距离阈值，单位 px，由调用方按屏幕密度换算好。 */
 internal class CardSwipeThresholds(
-    /** 横向拖过这个距离松手就算右滑成立 */
+    /** 横向拖过这个距离松手就算左滑 / 右滑成立 */
     val commitX: Float,
-    /** 纵向拖过这个距离松手就算上滑成立 */
+    /** 从手势起点上拉过这个距离松手就算「不会 / 不认识」 */
     val commitY: Float,
-    /** 浏览阶段上拉多少开始露出例句 */
+    /** 浏览阶段上拉多少开始停驻露例句 */
     val revealY: Float,
+    /** 停驻后下拉多少收起例句 */
+    val closeY: Float,
+    /** pull = 1 时卡片上移的像素，也是例句区的高度 */
+    val parkPx: Float,
     /** 卡片飞出去的目标位移 */
     val exitX: Float,
     val exitY: Float
@@ -56,41 +61,51 @@ internal suspend fun PointerInputScope.detectFlipAndUndo(
 /**
  * 拖动跟手 + 松手后飞出或回弹。
  *
- * 第一次移动超过触摸阈值时锁定主轴，之后只沿该轴位移，避免斜着拖时
- * 卡片同时横飞又上抬。飞出动画跑完才回调 onCommit，所以卡片内容在
- * 动画期间不会被状态机换掉。
+ * 横向：[allowLeft] / [allowRight] 决定哪个方向能拖动，「已学过 / 会」走左滑，
+ * 特意避开 Wear 从左缘右滑返回的系统手势。
+ *
+ * 纵向用 [pull]（0..1）描述例句展开程度：未停驻时上拉跟手，越过 [revealY]
+ * 回调 [onRevealOpen] 让卡片停到上方；停驻后下拉越过 [closeY] 回调
+ * [onRevealClose] 复位。两个方向继续上拉过 [commitY] 都算「不会」。
+ * 所有阈值都相对手势起点，拖到一半停驻状态翻转也不会跳变。
  */
 internal suspend fun PointerInputScope.detectCardSwipe(
     scope: CoroutineScope,
+    dragging: MutableState<Boolean>,
     offsetX: Animatable<Float, AnimationVector1D>,
-    offsetY: Animatable<Float, AnimationVector1D>,
+    pull: Animatable<Float, AnimationVector1D>,
     thresholds: CardSwipeThresholds,
+    parked: Boolean,
+    allowLeft: Boolean,
     allowRight: Boolean,
     allowUp: Boolean,
-    onPullReveal: (() -> Unit)?,
+    onRevealOpen: (() -> Unit)?,
+    onRevealClose: (() -> Unit)?,
+    onSettle: (parked: Boolean) -> Unit,
     onCommit: (SwipeDirection) -> Unit
 ) {
     val slop = viewConfiguration.touchSlop
+    val base = if (parked) 1f else 0f
     var axis = 0
     var totalX = 0f
     var totalY = 0f
     var committed = false
-    var revealed = false
+    var opened = false
+    var closed = false
     var dragJob: Job? = null
 
-    fun moveTo(x: Float, y: Float) {
+    fun move(x: Float, p: Float) {
         dragJob?.cancel()
         dragJob = scope.launch {
             offsetX.snapTo(x)
-            offsetY.snapTo(y)
+            pull.snapTo(p)
         }
     }
 
-    fun settle() {
+    fun settleX() {
         dragJob?.cancel()
         dragJob = scope.launch {
             offsetX.animateTo(0f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
-            offsetY.animateTo(0f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
         }
     }
 
@@ -100,7 +115,9 @@ internal suspend fun PointerInputScope.detectCardSwipe(
             totalX = 0f
             totalY = 0f
             committed = false
-            revealed = false
+            opened = false
+            closed = false
+            dragging.value = true
         },
         onDrag = { change, dragAmount ->
             change.consume()
@@ -111,45 +128,78 @@ internal suspend fun PointerInputScope.detectCardSwipe(
                 axis = if (abs(totalX) > abs(totalY)) 1 else 2
             }
             when (axis) {
-                1 -> if (allowRight) moveTo(totalX.coerceAtLeast(0f), 0f)
+                1 -> {
+                    val x = when {
+                        allowLeft && totalX < 0 -> totalX
+                        allowRight && totalX > 0 -> totalX
+                        else -> 0f
+                    }
+                    move(x, pull.value)
+                }
+
                 2 -> {
-                    if (allowUp || onPullReveal != null) moveTo(0f, totalY.coerceAtMost(0f))
-                    // 读累计位移而不是 offsetY.value：snapTo 是异步的，同帧里还是旧值
-                    if (onPullReveal != null && !revealed && -totalY >= thresholds.revealY) {
-                        revealed = true
-                        onPullReveal()
+                    // 读累计位移而不是 pull.value：snapTo 是异步的，同帧里还是旧值
+                    val p = (base - totalY / thresholds.parkPx).coerceIn(0f, 1f)
+                    move(offsetX.value, p)
+                    if (!parked && onRevealOpen != null && !opened && -totalY >= thresholds.revealY) {
+                        opened = true
+                        onRevealOpen()
+                    }
+                    if (parked && onRevealClose != null && !closed && totalY >= thresholds.closeY) {
+                        closed = true
+                        onRevealClose()
                     }
                 }
             }
         },
         onDragEnd = {
+            dragging.value = false
             if (committed) return@detectDragGestures
             when (axis) {
-                1 -> if (allowRight && offsetX.value >= thresholds.commitX) {
-                    committed = true
-                    dragJob?.cancel()
-                    scope.launch {
-                        offsetX.animateTo(thresholds.exitX, tween(180))
-                        onCommit(SwipeDirection.RIGHT)
+                1 -> {
+                    // 读累计位移：最后一次 snapTo 可能还排在队列里没生效
+                    val direction = when {
+                        allowLeft && totalX <= -thresholds.commitX -> SwipeDirection.LEFT
+                        allowRight && totalX >= thresholds.commitX -> SwipeDirection.RIGHT
+                        else -> null
                     }
-                } else {
-                    settle()
+                    if (direction == null) {
+                        settleX()
+                    } else {
+                        committed = true
+                        dragJob?.cancel()
+                        scope.launch {
+                            offsetX.animateTo(if (direction == SwipeDirection.LEFT) -thresholds.exitX else thresholds.exitX, tween(180))
+                            onCommit(direction)
+                        }
+                    }
                 }
 
-                2 -> if (allowUp && -offsetY.value >= thresholds.commitY) {
+                2 -> if (allowUp && -totalY >= thresholds.commitY) {
                     committed = true
                     dragJob?.cancel()
                     scope.launch {
-                        offsetY.animateTo(-thresholds.exitY, tween(180))
+                        pull.animateTo(2.5f, tween(180))
                         onCommit(SwipeDirection.UP)
                     }
                 } else {
-                    settle()
+                    dragJob?.cancel()
+                    val target = when {
+                        parked && closed -> false
+                        parked -> true
+                        opened -> true
+                        else -> false
+                    }
+                    onSettle(target)
                 }
 
-                else -> settle()
+                else -> onSettle(parked)
             }
         },
-        onDragCancel = { settle() }
+        onDragCancel = {
+            dragging.value = false
+            settleX()
+            onSettle(parked)
+        }
     )
 }
