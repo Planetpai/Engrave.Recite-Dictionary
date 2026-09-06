@@ -90,27 +90,6 @@ interface ReviewStateDao {
     @Query("SELECT COUNT(*) FROM review_states WHERE stage = 'NEW'")
     suspend fun countNew(): Int
 
-    /**
-     * 「继续再学」用：今天答过「不会」的词，最近答错的排前面。
-     * 去重靠 GROUP BY，一个词同天多次答错只取一次。
-     */
-    @Query(
-        """
-        SELECT rs.*, w.bookId AS bookId, w.term AS term, w.meaning AS meaning,
-               w.phonetic AS phonetic, w.example AS example,
-               w.exampleTranslation AS exampleTranslation, w.position AS position
-        FROM review_logs AS rl
-        INNER JOIN words AS w ON w.id = rl.wordId
-        INNER JOIN review_states AS rs ON rs.wordId = rl.wordId
-        WHERE rl.grade = 'AGAIN' AND rl.reviewDay = :today
-          AND (:bookId IS NULL OR w.bookId = :bookId)
-        GROUP BY rl.wordId
-        ORDER BY MAX(rl.reviewedAt) DESC
-        LIMIT :limit
-        """
-    )
-    suspend fun getAgainItemsToday(bookId: Long?, today: Long, limit: Int): List<StudyItemRow>
-
     /** 导出数据用：全部调度状态连着词头一起拿。 */
     @Query(
         """

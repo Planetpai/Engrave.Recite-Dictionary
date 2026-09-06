@@ -71,8 +71,13 @@ fun MistakesDrillScreen(
                 ) {
                     DrillMessage("刷完一轮！")
                     DrillMessage(
-                        "认识 ${current.knownCount} 个词",
-                        MaterialTheme.colors.onSurfaceVariant
+                        text = "认识 ${current.knownCount} 个词" +
+                            if (current.lapsedCount > 0) {
+                                " · 不熟 ${current.lapsedCount} 个，已排到明天复习"
+                            } else {
+                                ""
+                            },
+                        color = MaterialTheme.colors.onSurfaceVariant
                     )
                     androidx.wear.compose.material.Button(
                         onClick = viewModel::reload,

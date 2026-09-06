@@ -18,7 +18,12 @@ import com.example.vocabwatch.domain.srs.TimeProvider
  */
 data class SessionPlan(
     val newItems: List<StudyItem>,
-    val dueItems: List<StudyItem>
+    val dueItems: List<StudyItem>,
+    /**
+     * 浏览选词的目标：要收集到这么多「不认识」的词才进入背单词。
+     * newItems 是预取的批次（比目标多，用户左滑跳过的不占目标）。
+     */
+    val selectionTarget: Int = newItems.size
 ) {
     val isEmpty: Boolean get() = newItems.isEmpty() && dueItems.isEmpty()
 }
@@ -27,41 +32,47 @@ class GetStudySessionUseCase(
     private val studyRepository: StudyRepository,
     private val timeProvider: TimeProvider
 ) {
-    suspend operator fun invoke(config: StudyQueueConfig): SessionPlan {
+    /**
+     * [newLimitOverride] 非 null 时忽略每日新词上限，直接取这么多新词
+     * （「继续再学」按钮用：学新单词，绕过当日额度）。
+     */
+    suspend operator fun invoke(
+        config: StudyQueueConfig,
+        newLimitOverride: Int? = null
+    ): SessionPlan {
         val bookId = config.activeBookId
         val now = timeProvider.now()
 
         val newLearnedToday = studyRepository.countNewLearnedToday(bookId)
 
-        val newBudget = maxOf(0, config.dailyNewLimit - newLearnedToday)
+        val newBudget = newLimitOverride ?: maxOf(0, config.dailyNewLimit - newLearnedToday)
 
-        // 复习不设每日上限：到期多少就复习多少
+        // 浏览批次多预取一些：用户左滑「已学过」的不占目标，
+        // 直到攒够 newBudget 个「不认识」的词才进背单词
         return SessionPlan(
             newItems = if (newBudget == 0) {
                 emptyList()
             } else {
-                studyRepository.getNewItems(bookId, newBudget)
+                studyRepository.getNewItems(bookId, newBudget + BROWSE_BUFFER)
             },
-            dueItems = studyRepository.getDueItems(bookId, REVIEW_UNLIMITED, now)
+            dueItems = studyRepository.getDueItems(bookId, REVIEW_UNLIMITED, now),
+            selectionTarget = newBudget
         )
     }
 
     companion object {
         /** 复习队列的单次上限，实际上到期词远到不了这个数。 */
         const val REVIEW_UNLIMITED = 500
+
+        /** 浏览批次在目标之外多预取的词数，覆盖「已学过」跳过的部分。 */
+        const val BROWSE_BUFFER = 30
     }
+
 }
 
 /**
- * 「继续再学」的原料：今天答「不会」的词，最近答错的排前面。
- * 会话把词按 英文面→中文面→拼写 走满三遍（不占每日新词额度）。
+ * 恢复中断的会话：按快照里的词 id 批量取回带最新调度状态的卡片。
  */
-class GetAgainSessionUseCase(private val studyRepository: StudyRepository) {
-    suspend operator fun invoke(bookId: Long?, count: Int): SessionPlan =
-        SessionPlan(newItems = emptyList(), dueItems = studyRepository.getAgainItemsToday(bookId, count))
-}
-
-/** 恢复中断的会话：按快照里的词 id 批量取回带最新调度状态的卡片。 */
 class RestoreSessionUseCase(private val studyRepository: StudyRepository) {
     suspend operator fun invoke(wordIds: List<Long>): Map<Long, StudyItem> =
         studyRepository.getItemsByIds(wordIds).associateBy { it.wordId }

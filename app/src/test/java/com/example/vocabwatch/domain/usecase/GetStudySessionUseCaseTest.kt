@@ -60,7 +60,6 @@ class GetStudySessionUseCaseTest {
         override suspend fun getItemsByIds(wordIds: List<Long>): List<StudyItem> =
             (due + availableNew).filter { it.wordId in wordIds }
 
-        override suspend fun getAgainItemsToday(bookId: Long?, limit: Int): List<StudyItem> = emptyList()
 
         override suspend fun rescheduleToTomorrow(wordId: Long) = Unit
 
@@ -92,7 +91,8 @@ class GetStudySessionUseCaseTest {
 
         val plan = useCase(config)
 
-        assertEquals(5, plan.newItems.size)
+        assertEquals("批次含缓冲，比额度大", 21, plan.newItems.size)
+        assertEquals("浏览目标 = 每日额度", 5, plan.selectionTarget)
         assertEquals(3, plan.dueItems.size)
     }
 
@@ -122,7 +122,7 @@ class GetStudySessionUseCaseTest {
 
         val plan = useCase(config)
 
-        assertEquals(5, plan.newItems.size)
+        assertEquals(21, plan.newItems.size)
         assertEquals("到期多少复习多少，不再有每日复习额度", 80, plan.dueItems.size)
         assertEquals(GetStudySessionUseCase.REVIEW_UNLIMITED, repo.lastDueLimit)
     }

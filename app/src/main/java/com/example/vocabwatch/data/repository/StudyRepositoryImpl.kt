@@ -102,12 +102,6 @@ class StudyRepositoryImpl(
         )
     }
 
-    override suspend fun getAgainItemsToday(bookId: Long?, limit: Int): List<StudyItem> {
-        if (limit <= 0) return emptyList()
-        val today = DayIndex.of(timeProvider.now())
-        return reviewStateDao.getAgainItemsToday(bookId, today, limit).map { it.toDomain() }
-    }
-
     override suspend fun rescheduleToTomorrow(wordId: Long) {
         val state = reviewStateDao.getByWordId(wordId) ?: return
         if (state.stage == LearningStage.NEW.name) return

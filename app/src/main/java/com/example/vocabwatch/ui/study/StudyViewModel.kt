@@ -10,7 +10,6 @@ import com.example.vocabwatch.domain.model.ReviewState
 import com.example.vocabwatch.domain.model.StudyItem
 import com.example.vocabwatch.domain.repository.SettingsRepository
 import com.example.vocabwatch.domain.srs.TimeProvider
-import com.example.vocabwatch.domain.usecase.GetAgainSessionUseCase
 import com.example.vocabwatch.domain.usecase.GetStudySessionUseCase
 import com.example.vocabwatch.domain.usecase.RestoreSessionUseCase
 import com.example.vocabwatch.domain.usecase.SubmitReviewUseCase
@@ -47,7 +46,6 @@ class StudyViewModel(
     private val timeProvider: TimeProvider,
     private val sessionStore: StudySessionStore,
     private val restoreSession: RestoreSessionUseCase,
-    private val getAgainSession: GetAgainSessionUseCase,
     private val mistakeDao: MistakeDao
 ) : ViewModel() {
     /** 长按加入错题集成功的时间戳，界面借此闪一下提示。 */
@@ -98,7 +96,8 @@ class StudyViewModel(
             reset()
             browseQueue.addAll(plan.newItems)
             dueItems = plan.dueItems
-            selectionTarget = plan.newItems.size
+            // 目标 = 每日额度；批次里的多余词是给「已学过」跳过用的
+            selectionTarget = plan.selectionTarget
 
             when {
                 plan.isEmpty -> {
@@ -112,19 +111,22 @@ class StudyViewModel(
     }
 
     /**
-     * 「继续再学」：把今天答「不会」的 [count] 个词组成一轮加练
-     * （最近答错的排前面，不占每日新词额度）。没有可练的词时回到空状态。
+     * 「继续再学」：忽略每日额度，从词书里抽 [count] 个**新单词**，
+     * 进入浏览选词 → 背单词的完整流程。词书抽空时回到空状态。
      */
     fun continueLearning(count: Int) {
         viewModelScope.launch {
             _uiState.value = StudyUiState.Loading
             val config = settingsRepository.queueConfig.first()
-            val plan = getAgainSession(config.activeBookId, count)
+            val plan = getStudySession(config, newLimitOverride = count)
 
             reset()
+            browseQueue.addAll(plan.newItems)
             dueItems = plan.dueItems
+            selectionTarget = plan.selectionTarget
 
             when {
+                browseQueue.isNotEmpty() -> emitBrowse()
                 dueItems.isNotEmpty() -> startReviewPhase()
                 else -> _uiState.value = StudyUiState.Empty
             }
@@ -304,15 +306,16 @@ class StudyViewModel(
     }
 
     private fun advanceBrowse() {
-        if (browseQueue.isEmpty() && selected.isEmpty()) {
-            startReviewPhase()
+        // 攒够目标数量的「不认识」词才进背单词；批次提前抽完也放行（词书见底）
+        if (selected.size >= selectionTarget) {
+            breakTo(BreakKind.START_FORMAL)
             return
         }
-        if (selected.size >= selectionTarget || browseQueue.isEmpty()) {
+        if (browseQueue.isEmpty()) {
             breakTo(BreakKind.START_FORMAL)
-        } else {
-            emitBrowse()
+            return
         }
+        emitBrowse()
     }
 
     private fun emitBrowse(replay: SwipeDirection? = null) {

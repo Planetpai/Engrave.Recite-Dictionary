@@ -18,7 +18,6 @@ import com.example.vocabwatch.domain.srs.Scheduler
 import com.example.vocabwatch.domain.srs.Sm2Scheduler
 import com.example.vocabwatch.domain.srs.SystemTimeProvider
 import com.example.vocabwatch.domain.srs.TimeProvider
-import com.example.vocabwatch.domain.usecase.GetAgainSessionUseCase
 import com.example.vocabwatch.domain.usecase.GetStudySessionUseCase
 import com.example.vocabwatch.domain.usecase.RestoreSessionUseCase
 import com.example.vocabwatch.domain.usecase.SubmitReviewUseCase
@@ -87,7 +86,6 @@ class AppContainer(private val context: Context) {
 
     val restoreSession: RestoreSessionUseCase by lazy { RestoreSessionUseCase(studyRepository) }
 
-    val getAgainSession: GetAgainSessionUseCase by lazy { GetAgainSessionUseCase(studyRepository) }
 
     val submitReview: SubmitReviewUseCase by lazy {
         SubmitReviewUseCase(studyRepository, scheduler, timeProvider)

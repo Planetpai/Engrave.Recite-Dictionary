@@ -118,12 +118,13 @@ class MistakesDrillViewModel(
         }
     }
 
-    /** 刷完一轮：认识的移出错题集，不熟的排到明天复习。 */
+    /**
+     * 刷完一轮：答「不会」过的词排到明天复习；错题本列表本身不动
+     * （删除由用户在错题本里手动进行，防误触）。
+     */
     private fun finish() {
         viewModelScope.launch {
             lapsedToday.forEach { term -> runCatching { studyRepository.rescheduleToTomorrowByTerm(term) } }
-            val all = mistakeDao.observeAll().first()
-            all.filter { it.term !in lapsedToday }.forEach { mistakeDao.delete(it.term) }
             _uiState.value = DrillUiState.Finished(knownCount = knownCount, lapsedCount = lapsedToday.size)
         }
     }

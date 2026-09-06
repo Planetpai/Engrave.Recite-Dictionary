@@ -3,6 +3,7 @@ package com.example.vocabwatch.ui.study
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -154,6 +155,11 @@ fun StudyCardDeck(
                     rotationZ = offsetX.value / 40f
                 }
                 .pointerInput(cardKey, onLongPress) { detectFlipAndUndo(onTap, onDoubleTap, onLongPress) }
+            // 长按（加错题集）单独用 detectTapGestures：按住超过系统长按时长即触发，
+            // 翻面检测器靠按压时长抑制，避免长按被当成单击
+            .pointerInput(cardKey, onLongPress) {
+                detectTapGestures(onLongPress = { onLongPress?.invoke() })
+            }
                 .pointerInput(cardKey, allowLeft, allowUp, onRevealOpen != null) {
                     detectCardSwipe(
                         scope = scope,

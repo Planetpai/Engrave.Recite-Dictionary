@@ -33,9 +33,10 @@ interface ReviewLogDao {
 
     @Query(
         """
-        SELECT COUNT(*) FROM review_logs AS l
+        SELECT COUNT(DISTINCT l.wordId) FROM review_logs AS l
         INNER JOIN words AS w ON w.id = l.wordId
         WHERE l.reviewDay = :day AND l.stageBefore = 'NEW'
+          AND l.grade != 'EASY'
           AND (:bookId IS NULL OR w.bookId = :bookId)
         """
     )

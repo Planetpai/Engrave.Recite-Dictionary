@@ -34,8 +34,6 @@ interface StudyRepository {
     /** 今天已经复习了多少次，用于落实每日复习上限。 */
     suspend fun countReviewsToday(bookId: Long?): Int
 
-    /** 今天答过「不会」的词（去重、最近答错的在前），「继续再学」用。 */
-    suspend fun getAgainItemsToday(bookId: Long?, limit: Int): List<StudyItem>
 
     /** 把词的下次复习推到明天（随刷随学里「还不熟」的词用）。 */
     suspend fun rescheduleToTomorrow(wordId: Long)

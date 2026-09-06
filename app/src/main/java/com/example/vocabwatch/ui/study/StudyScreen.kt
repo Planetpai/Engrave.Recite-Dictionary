@@ -53,7 +53,6 @@ fun StudyScreen(
             timeProvider = container.timeProvider,
             sessionStore = StudySessionStore(container.appContext.filesDir),
             restoreSession = container.restoreSession,
-            getAgainSession = container.getAgainSession,
             mistakeDao = container.mistakeDao
         )
     }

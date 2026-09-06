@@ -49,18 +49,16 @@ internal suspend fun PointerInputScope.detectFlipAndUndo(
     val doubleTapTimeout = viewConfiguration.doubleTapTimeoutMillis
     val longPressTimeout = viewConfiguration.longPressTimeoutMillis
     awaitEachGesture {
-        awaitFirstDown()
-        val up = waitForUpOrCancellation()
-        if (up == null) return@awaitEachGesture // 拖走了，交给拖拽检测
+        val down = awaitFirstDown()
+        val downTime = down.uptimeMillis
+        val up = waitForUpOrCancellation() ?: return@awaitEachGesture // 拖走了，交给拖拽检测
 
-        // 手指按住超过长按时长：加入错题集（等抬起再触发，避免和拖拽打架）
-        if (onLongPress != null) {
-            val longPress = withTimeoutOrNull(longPressTimeout) { up }
-            if (longPress == null) {
-                waitForUpOrCancellation() // 等手指离开
-                onLongPress()
-                return@awaitEachGesture
-            }
+        // 长按（≥系统长按时长）不当作单击：长按动作由独立的
+        // detectTapGestures(onLongPress) 在按住期间触发，这里直接吞掉
+        val isLongPress = up.uptimeMillis - downTime >= longPressTimeout
+        if (isLongPress && onLongPress != null) {
+            // 长按的响应由长按检测器负责，这里不触发单击
+            return@awaitEachGesture
         }
 
         onTap()

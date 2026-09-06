@@ -13,7 +13,6 @@ import com.example.vocabwatch.domain.repository.StudyRepository
 import com.example.vocabwatch.domain.srs.ReviewOutcome
 import com.example.vocabwatch.domain.srs.Sm2Scheduler
 import com.example.vocabwatch.domain.srs.TimeProvider
-import com.example.vocabwatch.domain.usecase.GetAgainSessionUseCase
 import com.example.vocabwatch.domain.usecase.GetStudySessionUseCase
 import com.example.vocabwatch.domain.usecase.RestoreSessionUseCase
 import com.example.vocabwatch.domain.usecase.SubmitReviewUseCase
@@ -62,10 +61,6 @@ class StudyFlowTest {
         override suspend fun getItemsByIds(wordIds: List<Long>): List<StudyItem> =
             (due + availableNew).filter { it.wordId in wordIds }
 
-        override suspend fun getAgainItemsToday(bookId: Long?, limit: Int): List<StudyItem> {
-            lastAgainLimit = limit
-            return againToday.distinctBy { it.wordId }.take(limit)
-        }
 
         override suspend fun rescheduleToTomorrow(wordId: Long) = Unit
 
@@ -168,7 +163,6 @@ class StudyFlowTest {
             File(System.getProperty("java.io.tmpdir"), "study-session-test-${System.nanoTime()}.json").parentFile
         ),
         restoreSession = RestoreSessionUseCase(repo),
-        getAgainSession = GetAgainSessionUseCase(repo),
         mistakeDao = fakeMistakeDao
     )
 
@@ -187,12 +181,13 @@ class StudyFlowTest {
         val repo = FakeStudyRepository(availableNew = newItems(1L..5L))
         val vm = viewModel(repo, dailyNewLimit = 3)
 
-        assertEquals(3, vm.browsing().remaining)
+        // 批次含缓冲（3 + 30，取词书里现有的 5 个），目标仍是 3
+        assertEquals(5, vm.browsing().remaining)
 
         vm.answer(Verdict.KNOWN)
 
         assertEquals(listOf(1L to Grade.EASY), repo.persisted)
-        assertEquals(2, vm.browsing().remaining)
+        assertEquals(4, vm.browsing().remaining)
         assertEquals(0, vm.browsing().selectedCount)
     }
 
@@ -350,19 +345,15 @@ class StudyFlowTest {
     }
 
     @Test
-    fun `继续再学 - 只练今天答不会的词`() = kotlinx.coroutines.test.runTest {
-        val repo = FakeStudyRepository(
-            availableNew = newItems(100L..120L),
-            againToday = listOf(item(501, LearningStage.LEARNING), item(502, LearningStage.LEARNING))
-        )
-        val vm = viewModel(repo)
+    fun `继续再学 - 忽略每日额度直接抽新词`() = kotlinx.coroutines.test.runTest {
+        val repo = FakeStudyRepository(availableNew = newItems(100L..105L))
+        val vm = viewModel(repo, dailyNewLimit = 2)
 
         vm.continueLearning(5)
 
-        val state = vm.uiState.value as StudyUiState.Testing
-        assertEquals(TestPhase.REVIEW, state.phase)
-        assertEquals("只取今天答不会的词，不从词书抽新词", 2, state.remaining)
-        assertEquals(5, repo.lastAgainLimit)
+        val state = vm.browsing()
+        assertEquals("继续再学进入浏览选词（学新单词）", 6, state.remaining)
+        assertEquals("目标是用户选的数量", 5, state.selectionTarget)
     }
 
     @Test
