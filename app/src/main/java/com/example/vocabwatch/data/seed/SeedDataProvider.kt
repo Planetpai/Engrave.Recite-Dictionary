@@ -35,7 +35,8 @@ class SeedDataProvider(
 
     companion object {
         val ASSETS = listOf(
-            "wordbooks/cet4-core.json"
+            "wordbooks/cet4-core.json",
+            "wordbooks/gk-core.json"
         )
     }
 }

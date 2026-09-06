@@ -1,7 +1,6 @@
 package com.example.vocabwatch.ui.study
 
 import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -16,7 +15,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -52,6 +50,7 @@ fun StudyCardDeck(
     parked: Boolean,
     onTap: () -> Unit,
     onDoubleTap: () -> Unit,
+    onLongPress: (() -> Unit)? = null,
     onSwipeLeft: (() -> Unit)?,
     onSwipeUp: (() -> Unit)?,
     leftHint: String?,
@@ -68,7 +67,12 @@ fun StudyCardDeck(
     val dragging = remember { mutableStateOf(false) }
     val offsetX = remember(cardKey) { Animatable(0f) }
     val pull = remember(cardKey) { Animatable(0f) }
-    val flipAngle by animateFloatAsState(if (flipped) 180f else 0f, tween(280), label = "flip")
+    // 翻面角度跟卡片走：新卡一进来就从它自己的角度开始（没翻过就是 0°），
+    // 不会把上一张卡翻回正面的动画播到下一张卡头上
+    val flipAngle = remember(cardKey) { Animatable(if (flipped) 180f else 0f) }
+    LaunchedEffect(cardKey, flipped) {
+        flipAngle.animateTo(if (flipped) 180f else 0f, tween(280))
+    }
     val allowLeft = onSwipeLeft != null
     val allowUp = onSwipeUp != null
 
@@ -149,7 +153,7 @@ fun StudyCardDeck(
                     scaleY = s
                     rotationZ = offsetX.value / 40f
                 }
-                .pointerInput(cardKey) { detectFlipAndUndo(onTap, onDoubleTap) }
+                .pointerInput(cardKey, onLongPress) { detectFlipAndUndo(onTap, onDoubleTap, onLongPress) }
                 .pointerInput(cardKey, allowLeft, allowUp, onRevealOpen != null) {
                     detectCardSwipe(
                         scope = scope,
@@ -174,8 +178,8 @@ fun StudyCardDeck(
         ) {
             // 翻面旋转必须放在手势节点的内层：外层一旦旋转 180°，
             // 局部坐标 X 轴镜像，背面收到的拖拽增量就是反的
-            Box(Modifier.fillMaxSize().graphicsLayer { rotationY = flipAngle }) {
-                if (flipAngle <= 90f) {
+            Box(Modifier.fillMaxSize().graphicsLayer { rotationY = flipAngle.value }) {
+                if (flipAngle.value <= 90f) {
                     CardFace(Modifier.fillMaxSize(), content = front)
                 } else {
                     CardFace(

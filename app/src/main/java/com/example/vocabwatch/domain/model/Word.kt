@@ -44,3 +44,20 @@ data class ImportResult(
     val importedCount: Int,
     val alreadyImported: Boolean
 )
+
+/**
+ * 离线词典（ECDICT）的一条查询结果。
+ *
+ * meaningZh 对应 ECDICT 的 translation 列（中文释义），definitionEn 对应
+ * definition 列（英文释义）。score 是搜索时的匹配档位：3 精确、2 前缀、1 包含。
+ */
+data class DictEntry(
+    val term: String,
+    val phonetic: String? = null,
+    val meaningZh: String? = null,
+    val definitionEn: String? = null,
+    val exchange: String? = null,
+    val score: Int = 0,
+    /** COCA 语料词频，越大越常用；0 表示语料库未收录。 */
+    val frq: Int = 0
+)

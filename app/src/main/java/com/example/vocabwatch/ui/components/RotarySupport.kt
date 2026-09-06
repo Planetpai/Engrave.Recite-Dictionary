@@ -29,7 +29,10 @@ private const val ROTARY_PIXELS_PER_DETENT = 48f
  * 旧监听器失效但不碰新的。
  */
 @Composable
-fun rememberRotaryScrollHandler(onScrollBy: suspend (pixels: Float) -> Unit) {
+fun rememberRotaryScrollHandler(
+    enabled: Boolean = true,
+    onScrollBy: suspend (pixels: Float) -> Unit
+) {
     val view = LocalView.current
     val scope = rememberCoroutineScope()
 
@@ -39,7 +42,7 @@ fun rememberRotaryScrollHandler(onScrollBy: suspend (pixels: Float) -> Unit) {
         view.setOnGenericMotionListener { _, event ->
             val isRotary = event.action == MotionEvent.ACTION_SCROLL &&
                 (event.source and InputDevice.SOURCE_ROTARY_ENCODER) != 0
-            if (isRotary && active) {
+            if (isRotary && active && enabled) {
                 // 顺时针为正，内容应当向下滚动
                 val pixels = event.getAxisValue(MotionEvent.AXIS_SCROLL) * ROTARY_PIXELS_PER_DETENT
                 scope.launch { onScrollBy(pixels) }
@@ -54,8 +57,8 @@ fun rememberRotaryScrollHandler(onScrollBy: suspend (pixels: Float) -> Unit) {
     }
 }
 
-/** 给任意 ScrollableState 接上旋转表圈，一行搞定。 */
+/** 给任意 ScrollableState 接上旋转表圈，一行搞定。enabled=false 时让给别的页面。 */
 @Composable
-fun rememberRotaryScrollable(state: ScrollableState) {
-    rememberRotaryScrollHandler { pixels -> state.scrollBy(pixels) }
+fun rememberRotaryScrollable(state: ScrollableState, enabled: Boolean = true) {
+    rememberRotaryScrollHandler(enabled = enabled) { pixels -> state.scrollBy(pixels) }
 }

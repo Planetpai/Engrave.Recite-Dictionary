@@ -32,24 +32,39 @@ class GetStudySessionUseCase(
         val now = timeProvider.now()
 
         val newLearnedToday = studyRepository.countNewLearnedToday(bookId)
-        val reviewedToday = studyRepository.countReviewsToday(bookId)
 
         val newBudget = maxOf(0, config.dailyNewLimit - newLearnedToday)
-        val reviewBudget = maxOf(0, config.dailyReviewLimit - reviewedToday)
 
+        // 复习不设每日上限：到期多少就复习多少
         return SessionPlan(
             newItems = if (newBudget == 0) {
                 emptyList()
             } else {
                 studyRepository.getNewItems(bookId, newBudget)
             },
-            dueItems = if (reviewBudget == 0) {
-                emptyList()
-            } else {
-                studyRepository.getDueItems(bookId, reviewBudget, now)
-            }
+            dueItems = studyRepository.getDueItems(bookId, REVIEW_UNLIMITED, now)
         )
     }
+
+    companion object {
+        /** 复习队列的单次上限，实际上到期词远到不了这个数。 */
+        const val REVIEW_UNLIMITED = 500
+    }
+}
+
+/**
+ * 「继续再学」的原料：今天答「不会」的词，最近答错的排前面。
+ * 会话把词按 英文面→中文面→拼写 走满三遍（不占每日新词额度）。
+ */
+class GetAgainSessionUseCase(private val studyRepository: StudyRepository) {
+    suspend operator fun invoke(bookId: Long?, count: Int): SessionPlan =
+        SessionPlan(newItems = emptyList(), dueItems = studyRepository.getAgainItemsToday(bookId, count))
+}
+
+/** 恢复中断的会话：按快照里的词 id 批量取回带最新调度状态的卡片。 */
+class RestoreSessionUseCase(private val studyRepository: StudyRepository) {
+    suspend operator fun invoke(wordIds: List<Long>): Map<Long, StudyItem> =
+        studyRepository.getItemsByIds(wordIds).associateBy { it.wordId }
 }
 
 /**

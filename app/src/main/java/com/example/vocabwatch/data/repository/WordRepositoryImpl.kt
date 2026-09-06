@@ -32,11 +32,24 @@ class WordRepositoryImpl(
     override fun observeWords(bookId: Long?): Flow<List<Word>> =
         wordDao.observeAll(bookId).map { list -> list.map { it.toDomain() } }
 
+    override fun observeBookSizes(): Flow<Map<Long, Long>> =
+        wordDao.observeBookSizes().map { list -> list.associate { it.bookId to it.bytes } }
+
     override suspend fun getBook(bookId: Long): WordBook? =
         wordBookDao.getById(bookId)?.toDomain()
 
     override suspend fun getWord(wordId: Long): Word? =
         wordDao.getById(wordId)?.toDomain()
+
+    override suspend fun getWords(bookId: Long): List<Word> =
+        wordDao.getByBook(bookId).map { it.toDomain() }
+
+    override suspend fun findWord(term: String): Word? =
+        wordDao.findByTerm(term.trim())?.toDomain()
+
+    override suspend fun deleteBook(bookId: Long) {
+        wordBookDao.deleteById(bookId)
+    }
 
     /**
      * 导入一本词书。整个过程在一个事务里：

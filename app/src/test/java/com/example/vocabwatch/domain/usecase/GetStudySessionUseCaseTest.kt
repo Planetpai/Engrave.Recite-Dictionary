@@ -57,6 +57,15 @@ class GetStudySessionUseCaseTest {
             return availableNew.take(limit)
         }
 
+        override suspend fun getItemsByIds(wordIds: List<Long>): List<StudyItem> =
+            (due + availableNew).filter { it.wordId in wordIds }
+
+        override suspend fun getAgainItemsToday(bookId: Long?, limit: Int): List<StudyItem> = emptyList()
+
+        override suspend fun rescheduleToTomorrow(wordId: Long) = Unit
+
+        override suspend fun rescheduleToTomorrowByTerm(term: String) = Unit
+
         override suspend fun countNewLearnedToday(bookId: Long?): Int = newLearnedToday
 
         override suspend fun countReviewsToday(bookId: Long?): Int = reviewsToday
@@ -71,7 +80,7 @@ class GetStudySessionUseCaseTest {
         override suspend fun restoreStateAndDropLastLog(wordId: Long, restored: ReviewState) = Unit
     }
 
-    private val config = StudyQueueConfig(dailyNewLimit = 5, dailyReviewLimit = 100)
+    private val config = StudyQueueConfig(dailyNewLimit = 5)
 
     @Test
     fun `新词和到期词分别按各自额度取出`() = runTest {
@@ -104,37 +113,18 @@ class GetStudySessionUseCaseTest {
     }
 
     @Test
-    fun `今天复习额度用完 - 只出新词`() = runTest {
+    fun `复习不设上限 - 到期词全部取出`() = runTest {
         val repo = FakeStudyRepository(
-            due = (1L..8L).map { item(it) },
-            availableNew = newItems(100L..120L),
-            reviewsToday = 100
+            due = (1L..80L).map { item(it) },
+            availableNew = newItems(100L..120L)
         )
         val useCase = GetStudySessionUseCase(repo, timeProvider)
 
         val plan = useCase(config)
 
         assertEquals(5, plan.newItems.size)
-        assertTrue(plan.dueItems.isEmpty())
-        assertEquals(-1, repo.lastDueLimit)
-    }
-
-    @Test
-    fun `额度部分消耗 - 只取剩余额度`() = runTest {
-        val repo = FakeStudyRepository(
-            due = (1L..80L).map { item(it) },
-            availableNew = newItems(100L..150L),
-            newLearnedToday = 3,
-            reviewsToday = 40
-        )
-        val useCase = GetStudySessionUseCase(repo, timeProvider)
-
-        val plan = useCase(config)
-
-        assertEquals(2, plan.newItems.size)
-        assertEquals(2, repo.lastNewLimit)
-        assertEquals(60, plan.dueItems.size)
-        assertEquals(60, repo.lastDueLimit)
+        assertEquals("到期多少复习多少，不再有每日复习额度", 80, plan.dueItems.size)
+        assertEquals(GetStudySessionUseCase.REVIEW_UNLIMITED, repo.lastDueLimit)
     }
 
     @Test

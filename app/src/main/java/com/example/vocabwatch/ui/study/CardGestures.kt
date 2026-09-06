@@ -43,12 +43,26 @@ internal class CardSwipeThresholds(
  */
 internal suspend fun PointerInputScope.detectFlipAndUndo(
     onTap: () -> Unit,
-    onDoubleTap: () -> Unit
+    onDoubleTap: () -> Unit,
+    onLongPress: (() -> Unit)? = null
 ) {
     val doubleTapTimeout = viewConfiguration.doubleTapTimeoutMillis
+    val longPressTimeout = viewConfiguration.longPressTimeoutMillis
     awaitEachGesture {
         awaitFirstDown()
-        if (waitForUpOrCancellation() == null) return@awaitEachGesture // 拖走了，交给拖拽检测
+        val up = waitForUpOrCancellation()
+        if (up == null) return@awaitEachGesture // 拖走了，交给拖拽检测
+
+        // 手指按住超过长按时长：加入错题集（等抬起再触发，避免和拖拽打架）
+        if (onLongPress != null) {
+            val longPress = withTimeoutOrNull(longPressTimeout) { up }
+            if (longPress == null) {
+                waitForUpOrCancellation() // 等手指离开
+                onLongPress()
+                return@awaitEachGesture
+            }
+        }
+
         onTap()
         val second = withTimeoutOrNull(doubleTapTimeout) {
             awaitFirstDown()

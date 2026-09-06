@@ -21,7 +21,6 @@ data class StatsUiState(
     val books: List<WordBook> = emptyList(),
     val activeBookId: Long? = null,
     val dailyNewLimit: Int = 0,
-    val dailyReviewLimit: Int = 0
 )
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -43,7 +42,6 @@ class StatsViewModel(
                     books = books,
                     activeBookId = config.activeBookId,
                     dailyNewLimit = config.dailyNewLimit,
-                    dailyReviewLimit = config.dailyReviewLimit
                 )
             }
         }

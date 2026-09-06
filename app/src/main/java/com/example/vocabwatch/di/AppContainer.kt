@@ -1,11 +1,16 @@
 package com.example.vocabwatch.di
 
 import android.content.Context
+import com.example.vocabwatch.data.backup.BackupManager
+import com.example.vocabwatch.data.dictionary.DictRepository
 import com.example.vocabwatch.data.local.AppDatabase
+import com.example.vocabwatch.data.local.dao.MistakeDao
+import com.example.vocabwatch.data.local.dao.SearchHistoryDao
 import com.example.vocabwatch.data.repository.SettingsRepositoryImpl
 import com.example.vocabwatch.data.repository.StudyRepositoryImpl
 import com.example.vocabwatch.data.repository.WordRepositoryImpl
 import com.example.vocabwatch.data.seed.SeedDataProvider
+import com.example.vocabwatch.data.session.StudySessionStore
 import com.example.vocabwatch.domain.repository.SettingsRepository
 import com.example.vocabwatch.domain.repository.StudyRepository
 import com.example.vocabwatch.domain.repository.WordRepository
@@ -13,7 +18,9 @@ import com.example.vocabwatch.domain.srs.Scheduler
 import com.example.vocabwatch.domain.srs.Sm2Scheduler
 import com.example.vocabwatch.domain.srs.SystemTimeProvider
 import com.example.vocabwatch.domain.srs.TimeProvider
+import com.example.vocabwatch.domain.usecase.GetAgainSessionUseCase
 import com.example.vocabwatch.domain.usecase.GetStudySessionUseCase
+import com.example.vocabwatch.domain.usecase.RestoreSessionUseCase
 import com.example.vocabwatch.domain.usecase.SubmitReviewUseCase
 import com.example.vocabwatch.domain.usecase.UndoReviewUseCase
 
@@ -28,6 +35,8 @@ import com.example.vocabwatch.domain.usecase.UndoReviewUseCase
  * 很敏感，数据库不该在没进任何页面时就被打开。
  */
 class AppContainer(private val context: Context) {
+
+    val appContext: Context = context.applicationContext
 
     val timeProvider: TimeProvider = SystemTimeProvider
 
@@ -58,9 +67,27 @@ class AppContainer(private val context: Context) {
         SettingsRepositoryImpl(context)
     }
 
+    /** ECDICT 离线词典，搜索页和详情页用。 */
+    val dictRepository: DictRepository by lazy { DictRepository(appContext) }
+
+    val backupManager: BackupManager by lazy {
+        BackupManager(appContext, database, wordRepository, settingsRepository, sessionStore, seedDataProvider)
+    }
+
+    val searchDao: SearchHistoryDao by lazy { database.searchHistoryDao() }
+
+    val mistakeDao: MistakeDao by lazy { database.mistakeDao() }
+
     val getStudySession: GetStudySessionUseCase by lazy {
         GetStudySessionUseCase(studyRepository, timeProvider)
     }
+
+    /** 学习会话断点续传。 */
+    val sessionStore: StudySessionStore by lazy { StudySessionStore(appContext.filesDir) }
+
+    val restoreSession: RestoreSessionUseCase by lazy { RestoreSessionUseCase(studyRepository) }
+
+    val getAgainSession: GetAgainSessionUseCase by lazy { GetAgainSessionUseCase(studyRepository) }
 
     val submitReview: SubmitReviewUseCase by lazy {
         SubmitReviewUseCase(studyRepository, scheduler, timeProvider)

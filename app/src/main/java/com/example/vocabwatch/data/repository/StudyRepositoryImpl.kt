@@ -9,6 +9,7 @@ import com.example.vocabwatch.data.local.entity.ReviewLogEntity
 import com.example.vocabwatch.data.mapper.toDomain
 import com.example.vocabwatch.data.mapper.toEntity
 import com.example.vocabwatch.domain.model.Grade
+import com.example.vocabwatch.domain.model.LearningStage
 import com.example.vocabwatch.domain.model.ReviewState
 import com.example.vocabwatch.domain.model.StudyItem
 import com.example.vocabwatch.domain.model.StudyStats
@@ -17,6 +18,8 @@ import com.example.vocabwatch.domain.srs.ReviewOutcome
 import com.example.vocabwatch.domain.srs.TimeProvider
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
+
+private const val MILLIS_PER_DAY = 86_400_000L
 
 class StudyRepositoryImpl(
     private val database: AppDatabase,
@@ -63,6 +66,10 @@ class StudyRepositoryImpl(
         if (limit <= 0) emptyList()
         else reviewStateDao.getNewItems(bookId, limit).map { it.toDomain() }
 
+    override suspend fun getItemsByIds(wordIds: List<Long>): List<StudyItem> =
+        if (wordIds.isEmpty()) emptyList()
+        else reviewStateDao.getItemsByIds(wordIds).map { it.toDomain() }
+
     override suspend fun countNewLearnedToday(bookId: Long?): Int =
         reviewLogDao.countNewLearnedOnDay(DayIndex.of(timeProvider.now()), bookId)
 
@@ -94,6 +101,22 @@ class StudyRepositoryImpl(
             )
         )
     }
+
+    override suspend fun getAgainItemsToday(bookId: Long?, limit: Int): List<StudyItem> {
+        if (limit <= 0) return emptyList()
+        val today = DayIndex.of(timeProvider.now())
+        return reviewStateDao.getAgainItemsToday(bookId, today, limit).map { it.toDomain() }
+    }
+
+    override suspend fun rescheduleToTomorrow(wordId: Long) {
+        val state = reviewStateDao.getByWordId(wordId) ?: return
+        if (state.stage == LearningStage.NEW.name) return
+        // 推迟一天：随刷随学里「还不熟」的词明天再出现在复习里
+        reviewStateDao.upsert(state.copy(dueAt = timeProvider.now() + MILLIS_PER_DAY))
+    }
+
+    override suspend fun rescheduleToTomorrowByTerm(term: String) =
+        database.wordDao().findByTerm(term)?.let { rescheduleToTomorrow(it.id) } ?: Unit
 
     override suspend fun restoreStateAndDropLastLog(
         wordId: Long,

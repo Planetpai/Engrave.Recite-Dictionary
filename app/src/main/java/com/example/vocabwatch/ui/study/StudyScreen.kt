@@ -5,6 +5,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -12,6 +13,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -19,29 +23,38 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.wear.compose.material.Button
-import androidx.wear.compose.material.Chip
+import androidx.wear.compose.material.ButtonDefaults
 import androidx.wear.compose.material.MaterialTheme
 import androidx.wear.compose.material.Scaffold
 import androidx.wear.compose.material.Text
 import androidx.wear.compose.material.TimeText
+import com.example.vocabwatch.data.session.StudySessionStore
 import com.example.vocabwatch.ui.vocabViewModel
+import java.io.File
 
 /**
  * 学习页。
  *
  * 整页不滚动，内容就是一叠卡片加手势，所以没有 ScalingLazyColumn，也没有
- * 位置指示条。侧滑返回在导航层被关掉了，只能按返回键退出——每次评分都
- * 已经落库，退出即保存。
+ * 位置指示条。侧滑返回在导航层被关掉了，只能按返回键退出——队列快照会在
+ * 每次状态变化时持久化，退出再进来从断点继续。
  */
 @Composable
-fun StudyScreen(modifier: Modifier = Modifier) {
+fun StudyScreen(
+    onExit: () -> Unit,
+    modifier: Modifier = Modifier
+) {
     val viewModel = vocabViewModel<StudyViewModel> { container ->
         StudyViewModel(
             getStudySession = container.getStudySession,
             submitReview = container.submitReview,
             undoReview = container.undoReview,
             settingsRepository = container.settingsRepository,
-            timeProvider = container.timeProvider
+            timeProvider = container.timeProvider,
+            sessionStore = StudySessionStore(container.appContext.filesDir),
+            restoreSession = container.restoreSession,
+            getAgainSession = container.getAgainSession,
+            mistakeDao = container.mistakeDao
         )
     }
     val state by viewModel.uiState.collectAsState()
@@ -51,15 +64,12 @@ fun StudyScreen(modifier: Modifier = Modifier) {
             when (val current = state) {
                 StudyUiState.Loading -> CenteredMessage("准备卡片…")
 
-                StudyUiState.Empty -> Column(
-                    Modifier.fillMaxSize().padding(horizontal = 20.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterVertically)
-                ) {
-                    CenteredMessage("今天学完了")
-                    CenteredMessage("没有新词，也没有到期的复习", MaterialTheme.colors.onSurfaceVariant)
-                    Chip(label = { Text("重新加载") }, onClick = viewModel::startSession, modifier = Modifier.fillMaxWidth())
-                }
+                StudyUiState.Empty -> EndScreen(
+                    title = "今天都学完了",
+                    subtitle = "没有新词，也没有到期的复习",
+                    viewModel = viewModel,
+                    onExit = onExit
+                )
 
                 is StudyUiState.Break -> Column(
                     Modifier.fillMaxSize().padding(horizontal = 20.dp),
@@ -68,8 +78,17 @@ fun StudyScreen(modifier: Modifier = Modifier) {
                 ) {
                     CenteredMessage(current.title)
                     CenteredMessage(current.subtitle, MaterialTheme.colors.onSurfaceVariant)
-                    Button(onClick = viewModel::continueAfterBreak, modifier = Modifier.fillMaxWidth()) {
-                        Text(current.actionLabel)
+                    Button(
+                        onClick = { viewModel.onBreakAction(current.onPrimary) },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(current.primaryLabel)
+                    }
+                    current.secondaryLabel?.let { label ->
+                        Button(
+                            onClick = { viewModel.onBreakAction(current.onSecondary!!) },
+                            modifier = Modifier.fillMaxWidth()
+                        ) { Text(label) }
                     }
                 }
 
@@ -77,21 +96,70 @@ fun StudyScreen(modifier: Modifier = Modifier) {
 
                 is StudyUiState.Testing -> TestingPhase(current, viewModel)
 
-                is StudyUiState.Finished -> Column(
-                    Modifier.fillMaxSize().padding(horizontal = 20.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterVertically)
-                ) {
-                    CenteredMessage("本轮完成")
-                    CenteredMessage(
-                        "新词 ${current.newCount} · 复习 ${current.reviewCount}" +
-                            if (current.againCount > 0) " · 答错 ${current.againCount} 次" else "",
-                        MaterialTheme.colors.onSurfaceVariant
-                    )
-                    Chip(label = { Text("再来一组") }, onClick = viewModel::startSession, modifier = Modifier.fillMaxWidth())
-                }
+                is StudyUiState.Finished -> EndScreen(
+                    title = "本轮完成",
+                    subtitle = "新词 ${current.newCount} · 复习 ${current.reviewCount}" +
+                        if (current.againCount > 0) " · 答错 ${current.againCount} 次" else "",
+                    viewModel = viewModel,
+                    onExit = onExit
+                )
             }
         }
+    }
+}
+
+/**
+ * 学完后的收尾页（本轮完成 / 今日全空共用）：「继续再学」按用户选的数量
+ * 忽略每日上限再学一批，「休息一下」退出学习页。
+ */
+@Composable
+private fun EndScreen(
+    title: String,
+    subtitle: String,
+    viewModel: StudyViewModel,
+    onExit: () -> Unit
+) {
+    var pickingCount by remember { mutableStateOf(false) }
+
+    Column(
+        Modifier.fillMaxSize().padding(horizontal = 20.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterVertically)
+    ) {
+        CenteredMessage(title)
+        CenteredMessage(subtitle, MaterialTheme.colors.onSurfaceVariant)
+
+        if (pickingCount) {
+            Text(
+                "再学几个？",
+                style = MaterialTheme.typography.caption2,
+                color = MaterialTheme.colors.onSurfaceVariant
+            )
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                listOf(5, 10, 15, 20).forEach { count ->
+                    Button(
+                        onClick = { viewModel.continueLearning(count) },
+                        modifier = Modifier.weight(1f)
+                    ) { Text("$count") }
+                }
+            }
+        } else {
+            Button(
+                onClick = { pickingCount = true },
+                modifier = Modifier.fillMaxWidth()
+            ) { Text("继续再学") }
+        }
+
+        Button(
+            onClick = onExit,
+            colors = ButtonDefaults.buttonColors(
+                backgroundColor = MaterialTheme.colors.surface
+            ),
+            modifier = Modifier.fillMaxWidth()
+        ) { Text("休息一下") }
     }
 }
 

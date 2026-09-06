@@ -2,22 +2,44 @@ package com.example.vocabwatch.ui.study
 
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.wear.compose.material.MaterialTheme
+import androidx.wear.compose.material.Text
 
 /**
  * 正式背单词与复习：点一下翻面，左滑「会」、上滑「不会」，双击撤销。
  *
  * 左滑而不是右滑：Wear 的系统返回手势是从左缘右滑，判定手势和它同向
- * 太容易误触退出。三种考法（英选中、中选英、拼写）由状态机按位置轮换，
- * 答错会换一种考法隔两张重来。拼写卡没有背面，靠点字母作答。
+ * 太容易误触退出。考法跟着刷到的遍数走（状态机决定）：每个词刷满三遍——
+ * 第一遍英文面、第二遍中文面、第三遍拼写；答会进入下一遍，答不会归零沉底。
+ * 拼写卡没有背面，靠点字母作答。
  */
 @Composable
 internal fun TestingPhase(state: StudyUiState.Testing, viewModel: StudyViewModel) {
     val card = state.card
     val gradeEnabled = card.flipped && card.kind != CardKind.SPELLING
+
+    // 长按加入错题集后的短暂提示
+    val mistakeFlash by viewModel.mistakeFlash.collectAsState()
+    var showMistakeHint by remember { mutableStateOf(false) }
+    LaunchedEffect(mistakeFlash) {
+        if (mistakeFlash > 0L) {
+            showMistakeHint = true
+            kotlinx.coroutines.delay(1500)
+            showMistakeHint = false
+        }
+    }
 
     // 顶部让出 TimeText 的位置，否则进度行会和时钟叠字
     Column(Modifier.fillMaxSize().padding(top = 24.dp)) {
@@ -49,7 +71,7 @@ internal fun TestingPhase(state: StudyUiState.Testing, viewModel: StudyViewModel
                 .weight(1f)
                 .padding(horizontal = 12.dp),
             front = { TestFront(card, viewModel) },
-            back = { TestBack(card) }
+            back = { TestBack(card, viewModel) }
         )
     }
 }
@@ -70,7 +92,29 @@ private fun TestFront(card: TestCard, viewModel: StudyViewModel) {
         }
 
         CardKind.SPELLING -> {
-            CardBody(word.meaning)
+            // 拼写卡：正面只有释义（空间充裕）；点一下翻到背面做选词填空
+            CardBody(word.meaning, maxLines = 3)
+            if (!card.flipped) {
+                Text(
+                    text = "点一下拼写",
+                    style = MaterialTheme.typography.caption2,
+                    color = MaterialTheme.colors.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 4.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun TestBack(card: TestCard, viewModel: StudyViewModel) {
+    val word = card.item.word
+    when (card.kind) {
+        CardKind.SPELLING -> {
+            // 背面整卡留给选词填空，长词也放得下
             SpellingPanel(
                 cardKey = card.uid,
                 answer = card.answer,
@@ -78,26 +122,20 @@ private fun TestFront(card: TestCard, viewModel: StudyViewModel) {
                 onResult = { correct ->
                     viewModel.answer(if (correct) Verdict.KNOWN else Verdict.UNKNOWN)
                 },
-                modifier = Modifier.padding(top = 6.dp)
+                modifier = Modifier.padding(top = 4.dp)
             )
         }
-    }
-}
 
-@Composable
-private fun TestBack(card: TestCard) {
-    val word = card.item.word
-    when (card.kind) {
         CardKind.EN_TO_ZH -> {
-            CardBody(word.meaning)
-            ExampleBlock(word)
+            // 背面内容多（释义+例句+译文），全按最大行数会溢出卡片，统一收紧
+            CardBody(word.meaning, maxLines = 2)
+            ExampleBlock(word, exampleMaxLines = 2, translationMaxLines = 1)
         }
 
-        // 拼写卡不会翻面，走不到这里
         else -> {
             CardTitle(word.term)
             word.phonetic?.let { CardPhonetic(it) }
-            ExampleBlock(word)
+            ExampleBlock(word, exampleMaxLines = 2, translationMaxLines = 1)
         }
     }
 }

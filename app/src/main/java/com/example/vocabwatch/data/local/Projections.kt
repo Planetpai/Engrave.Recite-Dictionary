@@ -34,3 +34,15 @@ data class TodaySummary(
     val passedToday: Int,
     val newLearnedToday: Int
 )
+
+/** 词书内容占用估算，词书管理页展示。 */
+data class BookSize(
+    val bookId: Long,
+    val bytes: Long
+)
+
+/** 导出全量调度状态用：状态 + 它所属的词头。 */
+data class StateWithTerm(
+    @Embedded val state: ReviewStateEntity,
+    val term: String
+)

@@ -19,8 +19,6 @@ enum class Grade(val quality: Int) {
 data class StudyQueueConfig(
     /** 每天最多学多少个新词 */
     val dailyNewLimit: Int = 10,
-    /** 每天最多复习多少个到期词 */
-    val dailyReviewLimit: Int = 100,
     /** 只学这本词书；null 表示全部词书 */
     val activeBookId: Long? = null
 ) {

@@ -29,10 +29,12 @@ data class TestCard(
     val uid: Long,
     val item: StudyItem,
     val kind: CardKind,
-    /** 拼写卡的正确答案字母，其它卡型为空 */
-    val answer: List<Char> = emptyList(),
-    /** 拼写卡的乱序字母，其它卡型为空 */
-    val scrambled: List<Char> = emptyList(),
+    /** 这是该词在本轮里刷到第几遍，决定考法：1 英文面、2 中文面、3 拼写 */
+    val encounter: Int,
+    /** 拼写卡按顺序的正确分块（如 dis/a/bi/li/ty），其它卡型为空 */
+    val answer: List<String> = emptyList(),
+    /** 拼写卡的乱序分块，其它卡型为空 */
+    val scrambled: List<String> = emptyList(),
     val flipped: Boolean = false
 )
 
@@ -59,10 +61,17 @@ sealed interface StudyUiState {
     data class Break(
         val title: String,
         val subtitle: String,
-        val actionLabel: String
+        val primaryLabel: String,
+        val onPrimary: BreakAction,
+        /** null 表示没有第二选择（恢复的会话）。 */
+        val secondaryLabel: String? = null,
+        val onSecondary: BreakAction? = null
     ) : StudyUiState
 
-    /** 正式背单词 / 复习：点一下翻面，然后右滑会、上滑不会 */
+    /** Break 页按钮触发的动作。 */
+    enum class BreakAction { START_FORMAL, START_REVIEW, CONTINUE_LEARNING, REST }
+
+    /** 正式背单词 / 复习：点一下翻面，然后左滑会、上滑不会 */
     data class Testing(
         val phase: TestPhase,
         val card: TestCard,

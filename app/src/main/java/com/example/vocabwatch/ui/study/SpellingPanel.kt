@@ -28,58 +28,114 @@ import androidx.compose.ui.unit.dp
 import androidx.wear.compose.material.MaterialTheme
 import androidx.wear.compose.material.Text
 
-/** 一行放几个字母。手表宽度只够 7 个 20dp 的格子。 */
-private const val LETTERS_PER_ROW = 7
+/** 一行放几个分块格子：逐字母 6 个一行，分块 5 个一行，都刚好塞进卡内宽 */
+private const val CHUNKS_PER_ROW = 5
+private const val LETTERS_PER_ROW = 6
+
+/** 格子尺寸。高度压到 16dp：行数多时（长词两行槽+两行待选）也放得下 */
+private val CHUNK_WIDTH_CHUNKS = 24.dp
+private val CHUNK_WIDTH_LETTERS = 20.dp
+private val CHUNK_HEIGHT = 16.dp
+
+/** 单词不超过这么多字母时不开分块，直接逐字母拼 */
+private const val SINGLE_LETTER_MAX = 6
 
 /**
- * 拼写卡：中文提示下面给一堆乱序字母，点字母填进槽位，填满自动判定。
- * 点已填的槽位可以把字母退回去，拼错会抖一下再清空重拼。
+ * 拼写卡的分块：只用于拼写，不动单词本体在其它卡面上的显示。
+ *
+ * 长词拆成「前 3 个字母 + 剩余部分从尾往头每 2 个字母一组」，
+ * 例如 disability → dis / a / bi / li / ty。短词（≤[SINGLE_LETTER_MAX]）
+ * 保持逐字母。以后接入词典后，可以换成按词根词缀的更聪明的拆法，
+ * 调用方（状态机）只认 List<String>，不用改。
+ */
+internal fun spellingChunks(term: String): List<String> {
+    val letters = term.lowercase().filter { it.isLetter() }
+    if (letters.length <= SINGLE_LETTER_MAX) return letters.map { it.toString() }
+    val head = letters.take(3)
+    val rest = letters.drop(3)
+    val tail = ArrayDeque<String>()
+    var end = rest.length
+    while (end > 0) {
+        val start = maxOf(0, end - 2)
+        tail.addFirst(rest.substring(start, end))
+        end = start
+    }
+    return listOf(head) + tail
+}
+
+/**
+ * 拼写卡：中文提示下面给一堆乱序分块，点块填进槽位，填满自动判定。
+ * 点已填的槽位可以把块退回去，拼错会抖一下再清空重拼。
  *
  * 判定结果通过 [onResult] 交回状态机，对错分别走「会 / 不会」两条路。
  */
 @Composable
 fun SpellingPanel(
     cardKey: Any,
-    answer: List<Char>,
-    scrambled: List<Char>,
+    answer: List<String>,
+    scrambled: List<String>,
     onResult: (Boolean) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val typed = remember(cardKey) { mutableStateListOf<Int>() }
     var wrong by remember(cardKey) { mutableStateOf(false) }
+    /** 拼错槽位的下标：第一次拼错后持续高亮，指导就地改错 */
+    val markedWrong = remember(cardKey) { mutableStateListOf<Int>() }
+    var failCount by remember(cardKey) { mutableStateOf(0) }
     val shake = remember(cardKey) { Animatable(0f) }
 
+    // 逐字母（短词）一行能放 6 个，分块（长词）一行 5 个
+    val singleLetters = answer.all { it.length == 1 }
+    val perRow = if (singleLetters) LETTERS_PER_ROW else CHUNKS_PER_ROW
+    val tileWidth = if (singleLetters) CHUNK_WIDTH_LETTERS else CHUNK_WIDTH_CHUNKS
+
     LaunchedEffect(typed.size) {
-        if (answer.isNotEmpty() && typed.size == answer.size) {
-            if (typed.map { scrambled[it] } == answer) {
-                onResult(true)
-            } else {
-                wrong = true
-                repeat(3) {
-                    shake.animateTo(7f, tween(45))
-                    shake.animateTo(-7f, tween(45))
-                }
-                shake.animateTo(0f, tween(45))
-                typed.clear()
-                wrong = false
-                // 拼错不是免费重试：按「不会」落库并重排，隔几张再来
-                onResult(false)
-            }
+        if (answer.isEmpty() || typed.size != answer.size) return@LaunchedEffect
+
+        val wrongSlots = typed.indices.filter { scrambled[typed[it]] != answer[it] }
+        if (wrongSlots.isEmpty()) {
+            // 改对了：清除标记，按「会」处理
+            markedWrong.clear()
+            failCount = 0
+            onResult(true)
+            return@LaunchedEffect
+        }
+
+        wrong = true
+        repeat(3) {
+            shake.animateTo(7f, tween(45))
+            shake.animateTo(-7f, tween(45))
+        }
+        shake.animateTo(0f, tween(45))
+        wrong = false
+
+        if (failCount == 0) {
+            // 第一次拼错：高亮填错的槽位、已填的保留，就地改错重试
+            failCount = 1
+            markedWrong.clear()
+            markedWrong.addAll(wrongSlots)
+        } else {
+            // 第二次拼错：清空重来，按「不会」落库并沉底
+            failCount = 0
+            markedWrong.clear()
+            typed.clear()
+            onResult(false)
         }
     }
 
     Column(
         modifier = modifier.graphicsLayer { translationX = shake.value },
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(5.dp, Alignment.CenterVertically)
+        verticalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterVertically)
     ) {
-        answer.indices.chunked(LETTERS_PER_ROW).forEach { slots ->
+        answer.indices.chunked(perRow).forEach { slots ->
             Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
                 slots.forEach { slot ->
                     val source = if (slot < typed.size) typed[slot] else null
-                    LetterBox(
-                        letter = if (source == null) null else scrambled[source],
-                        highlighted = wrong,
+                    ChunkBox(
+                        chunk = if (source == null) null else scrambled[source],
+                        width = tileWidth,
+                        highlighted = wrong || markedWrong.contains(slot),
                         onClick = if (source == null) null else {
                             { typed.removeAt(slot) }
                         }
@@ -88,11 +144,12 @@ fun SpellingPanel(
             }
         }
 
-        scrambled.indices.chunked(LETTERS_PER_ROW).forEach { sources ->
+        scrambled.indices.chunked(perRow).forEach { sources ->
             Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
                 sources.forEach { source ->
-                    LetterBox(
-                        letter = scrambled[source],
+                    ChunkBox(
+                        chunk = scrambled[source],
+                        width = tileWidth,
                         used = typed.contains(source),
                         onClick = if (typed.contains(source) || typed.size >= answer.size) null else {
                             { typed.add(source) }
@@ -105,8 +162,9 @@ fun SpellingPanel(
 }
 
 @Composable
-private fun LetterBox(
-    letter: Char?,
+private fun ChunkBox(
+    chunk: String?,
+    width: androidx.compose.ui.unit.Dp,
     modifier: Modifier = Modifier,
     used: Boolean = false,
     highlighted: Boolean = false,
@@ -115,18 +173,18 @@ private fun LetterBox(
     val shape = RoundedCornerShape(6.dp)
     Box(
         modifier = modifier
-            .size(20.dp)
+            .size(width = width, height = CHUNK_HEIGHT)
             .alpha(if (used) 0.25f else 1f)
             .clip(shape)
             .background(if (highlighted) Color(0xFF5A2028) else HintBackgroundColor)
-            .then(if (letter == null) Modifier.border(1.dp, CardBorderColor, shape) else Modifier)
+            .then(if (chunk == null) Modifier.border(1.dp, CardBorderColor, shape) else Modifier)
             .then(if (onClick == null) Modifier else Modifier.clickable(onClick = onClick)),
         contentAlignment = Alignment.Center
     ) {
-        if (letter != null) {
+        if (chunk != null) {
             Text(
-                text = letter.toString(),
-                style = MaterialTheme.typography.caption1,
+                text = chunk,
+                style = MaterialTheme.typography.caption2,
                 color = MaterialTheme.colors.onSurface
             )
         }

@@ -114,3 +114,21 @@ data class ReviewLogEntity(
     val intervalAfterDays: Double,
     val elapsedMillis: Long
 )
+
+/** 查词历史：只存单词本身的信息，点开详情时写入。 */
+@Entity(tableName = "search_history")
+data class SearchHistoryEntity(
+    @PrimaryKey val term: String,
+    val phonetic: String?,
+    val meaning: String?,
+    val lookedUpAt: Long
+)
+
+/** 错题集：搜索页和历史记录里手动加入，也算「不会的词」。 */
+@Entity(tableName = "mistake_words")
+data class MistakeEntity(
+    @PrimaryKey val term: String,
+    val meaning: String?,
+    val phonetic: String?,
+    val addedAt: Long
+)

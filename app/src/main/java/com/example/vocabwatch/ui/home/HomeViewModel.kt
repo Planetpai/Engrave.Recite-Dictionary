@@ -2,6 +2,7 @@ package com.example.vocabwatch.ui.home
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.vocabwatch.data.session.StudySessionStore
 import com.example.vocabwatch.domain.model.StudyQueueConfig
 import com.example.vocabwatch.domain.model.StudyStats
 import com.example.vocabwatch.domain.model.WordBook
@@ -20,7 +21,9 @@ data class HomeUiState(
     val stats: StudyStats = StudyStats(),
     val books: List<WordBook> = emptyList(),
     val activeBookName: String? = null,
-    val dailyNewLimit: Int = StudyQueueConfig.DEFAULT.dailyNewLimit
+    val dailyNewLimit: Int = StudyQueueConfig.DEFAULT.dailyNewLimit,
+    /** 有未走完的学习会话快照（中途退出过），按钮必须保持可点以便续背。 */
+    val resumable: Boolean = false
 ) {
     /** 今天还能学几个新词。 */
     val newRemainingToday: Int
@@ -32,13 +35,25 @@ data class HomeUiState(
 
     val hasAnythingToStudy: Boolean
         get() = stats.dueNow > 0 || newRemainingToday > 0
+
+    /** 按钮永远可点：有额度显示「开始学习 N」，没有但有断点显示「继续背单词」。 */
+    val buttonEnabled: Boolean
+        get() = !isLoading
+
+    val buttonLabel: String
+        get() = when {
+            sessionSize > 0 -> "开始学习 $sessionSize"
+            resumable -> "继续背单词"
+            else -> "继续学习"
+        }
 }
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class HomeViewModel(
     studyRepository: StudyRepository,
     settingsRepository: SettingsRepository,
-    wordRepository: WordRepository
+    wordRepository: WordRepository,
+    private val sessionStore: StudySessionStore
 ) : ViewModel() {
 
     /**
@@ -49,14 +64,18 @@ class HomeViewModel(
         .flatMapLatest { config ->
             combine(
                 studyRepository.observeStats(config.activeBookId),
-                wordRepository.observeBooks()
-            ) { stats, books ->
+                wordRepository.observeBooks(),
+                kotlinx.coroutines.flow.flow {
+                    emit(sessionStore.load()?.hasContent == true)
+                }
+            ) { stats, books, resumable ->
                 HomeUiState(
                     isLoading = false,
                     stats = stats,
                     books = books,
                     activeBookName = books.firstOrNull { it.id == config.activeBookId }?.name,
-                    dailyNewLimit = config.dailyNewLimit
+                    dailyNewLimit = config.dailyNewLimit,
+                    resumable = resumable
                 )
             }
         }

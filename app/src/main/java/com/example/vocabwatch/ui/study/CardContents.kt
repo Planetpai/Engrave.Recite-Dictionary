@@ -24,17 +24,28 @@ internal fun CardTitle(text: String) {
     )
 }
 
-/** 卡片背面的释义，比正面小一号，给例句留地方。 */
+/** 卡片背面的释义，比正面小一号。maxLines 由调用方按卡型收紧。 */
 @Composable
-internal fun CardBody(text: String) {
+internal fun CardBody(text: String, maxLines: Int = 4) {
     Text(
         text = text,
         style = MaterialTheme.typography.body2,
         textAlign = TextAlign.Center,
-        maxLines = 4,
+        maxLines = maxLines,
         overflow = TextOverflow.Ellipsis,
         modifier = Modifier.fillMaxWidth()
     )
+}
+
+/** 例句和例句翻译。例句只来自词书本身，不查词典。 */
+@Composable
+internal fun ExampleBlock(
+    word: Word,
+    exampleMaxLines: Int = 3,
+    translationMaxLines: Int = 3
+) {
+    word.example?.let { CardCaption(it, maxLines = exampleMaxLines) }
+    word.exampleTranslation?.let { CardCaption(it, maxLines = translationMaxLines) }
 }
 
 @Composable
@@ -45,6 +56,7 @@ internal fun CardPhonetic(text: String) {
         color = MaterialTheme.colors.onSurfaceVariant,
         textAlign = TextAlign.Center,
         maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
         modifier = Modifier
             .fillMaxWidth()
             .padding(top = 2.dp)

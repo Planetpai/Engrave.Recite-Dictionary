@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import com.example.vocabwatch.data.local.StateWithTerm
 import com.example.vocabwatch.data.local.StageCounts
 import com.example.vocabwatch.data.local.StudyItemRow
 import com.example.vocabwatch.data.local.entity.ReviewStateEntity
@@ -58,6 +59,19 @@ interface ReviewStateDao {
     )
     suspend fun getNewItems(bookId: Long?, limit: Int): List<StudyItemRow>
 
+    /** 按词 id 批量取学习项，恢复会话快照用。顺序不保证，调用方自己排。 */
+    @Query(
+        """
+        SELECT rs.*, w.bookId AS bookId, w.term AS term, w.meaning AS meaning,
+               w.phonetic AS phonetic, w.example AS example,
+               w.exampleTranslation AS exampleTranslation, w.position AS position
+        FROM review_states AS rs
+        INNER JOIN words AS w ON w.id = rs.wordId
+        WHERE rs.wordId IN (:wordIds)
+        """
+    )
+    suspend fun getItemsByIds(wordIds: List<Long>): List<StudyItemRow>
+
     /** 首页四个计数一次查完。SUM 在无行时返回 NULL，所以套 COALESCE。 */
     @Query(
         """
@@ -75,4 +89,36 @@ interface ReviewStateDao {
 
     @Query("SELECT COUNT(*) FROM review_states WHERE stage = 'NEW'")
     suspend fun countNew(): Int
+
+    /**
+     * 「继续再学」用：今天答过「不会」的词，最近答错的排前面。
+     * 去重靠 GROUP BY，一个词同天多次答错只取一次。
+     */
+    @Query(
+        """
+        SELECT rs.*, w.bookId AS bookId, w.term AS term, w.meaning AS meaning,
+               w.phonetic AS phonetic, w.example AS example,
+               w.exampleTranslation AS exampleTranslation, w.position AS position
+        FROM review_logs AS rl
+        INNER JOIN words AS w ON w.id = rl.wordId
+        INNER JOIN review_states AS rs ON rs.wordId = rl.wordId
+        WHERE rl.grade = 'AGAIN' AND rl.reviewDay = :today
+          AND (:bookId IS NULL OR w.bookId = :bookId)
+        GROUP BY rl.wordId
+        ORDER BY MAX(rl.reviewedAt) DESC
+        LIMIT :limit
+        """
+    )
+    suspend fun getAgainItemsToday(bookId: Long?, today: Long, limit: Int): List<StudyItemRow>
+
+    /** 导出数据用：全部调度状态连着词头一起拿。 */
+    @Query(
+        """
+        SELECT rs.*, w.term AS term
+        FROM review_states AS rs
+        INNER JOIN words AS w ON w.id = rs.wordId
+        WHERE rs.stage != 'NEW'
+        """
+    )
+    suspend fun getAllLearnedWithTerm(): List<StateWithTerm>
 }
