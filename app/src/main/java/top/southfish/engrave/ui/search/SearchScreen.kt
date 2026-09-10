@@ -1,0 +1,320 @@
+package top.southfish.engrave.ui.search
+
+import android.text.Editable
+import android.text.InputType
+import android.text.TextWatcher
+import android.view.inputmethod.EditorInfo
+import android.view.inputmethod.InputMethodManager
+import android.widget.EditText
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.wear.compose.foundation.lazy.ScalingLazyColumn
+import androidx.wear.compose.foundation.lazy.items
+import androidx.wear.compose.foundation.lazy.rememberScalingLazyListState
+import androidx.wear.compose.material.Chip
+import androidx.wear.compose.material.ListHeader
+import androidx.wear.compose.material.MaterialTheme
+import androidx.wear.compose.material.PositionIndicator
+import androidx.wear.compose.material.Scaffold
+import androidx.wear.compose.material.Text
+import androidx.wear.compose.material.TimeText
+import top.southfish.engrave.data.local.entity.SearchHistoryEntity
+import top.southfish.engrave.ui.components.SwipeLeftRow
+import top.southfish.engrave.ui.components.rememberRotaryScrollable
+import top.southfish.engrave.ui.vocabViewModel
+
+private val SearchFieldBackground = Color(0xFF1B202A)
+
+/**
+ * 搜索页：上面搜索框，下面历史 / 结果。
+ *
+ * 模糊搜索（ECDICT 子集）按 相似档位 + 词频 排序；空查询时展示历史，
+ * 历史从右往左滑 = 加入错题集（大纲），同时把这条历史清掉。
+ */
+@Composable
+fun SearchScreen(
+    onOpenWord: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val viewModel = vocabViewModel<SearchViewModel> { container ->
+        SearchViewModel(
+            dictRepository = container.dictRepository,
+            searchDao = container.searchDao,
+            mistakeDao = container.mistakeDao
+        )
+    }
+    val state by viewModel.uiState.collectAsState()
+    val listState = rememberScalingLazyListState()
+    rememberRotaryScrollable(listState)
+    // 离开搜索页时确保键盘收起（自动弹出用了 SHOW_FORCED）
+    val rootView = androidx.compose.ui.platform.LocalView.current
+    androidx.compose.runtime.DisposableEffect(Unit) {
+        onDispose {
+            val imm = rootView.context.getSystemService(InputMethodManager::class.java)
+            imm?.hideSoftInputFromWindow(rootView.windowToken, 0)
+        }
+    }
+
+    Scaffold(
+        modifier = modifier,
+        timeText = { TimeText() },
+        positionIndicator = { PositionIndicator(scalingLazyListState = listState) }
+    ) {
+        Column(
+            Modifier
+                .fillMaxSize()
+                .padding(top = 24.dp, start = 12.dp, end = 12.dp)
+        ) {
+            // 搜索框用原生 EditText（见 SearchField 内部说明）
+            SearchField(onValueChange = viewModel::onQueryChange)
+
+            Box(Modifier.weight(1f)) {
+                if (state.query.isBlank()) {
+                    HistoryList(
+                        history = state.history,
+                        onOpen = { viewModel.openWord(it.term, onOpenWord) },
+                        onAddMistake = viewModel::addMistakeFromHistory,
+                        onClear = viewModel::clearHistory,
+                        listState = listState
+                    )
+                } else {
+                    ResultList(
+                        results = state.results,
+                        onOpen = { viewModel.openWord(it.term, onOpenWord) },
+                        listState = listState
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * 搜索输入框。
+ *
+ * 特意用原生 [EditText] 而不是 Compose 的 BasicTextField：手表上
+ * HoneyBoard 走全屏提取（extracted）编辑模式，Compose 1.5.x 的
+ * BasicTextField 在「键盘收起后重新点开、字段里已有文字」的会话里，
+ * 输入法的提取文本不再随输入刷新——用户打字时键盘上的文本条静止不动，
+ * 看起来就是“打不出字”。原生 EditText 是 IME 提取机制的参考实现，
+ * 全屏编辑条会实时同步，不存在这个问题。
+ */
+@Composable
+private fun SearchField(onValueChange: (String) -> Unit) {
+    val textColor = MaterialTheme.colors.onSurface.toArgb()
+    val hintColor = MaterialTheme.colors.onSurfaceVariant.toArgb()
+    val horizontalPadding = with(LocalDensity.current) { 14.dp.roundToPx() }
+
+    var editText by remember { mutableStateOf<EditText?>(null) }
+
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .padding(vertical = 6.dp)
+            .height(36.dp)
+            .clip(RoundedCornerShape(18.dp))
+            .background(SearchFieldBackground)
+            // 点条上文字以外的区域也能聚焦并拉起键盘
+            .clickable {
+                editText?.let { field ->
+                    field.requestFocus()
+                    val imm = field.context.getSystemService(InputMethodManager::class.java)
+                    imm?.showSoftInput(field, 0)
+                }
+            },
+        contentAlignment = Alignment.CenterStart
+    ) {
+        AndroidView(
+            modifier = Modifier.fillMaxWidth(),
+            factory = { ctx ->
+                EditText(ctx).apply {
+                    background = null
+                    setSingleLine(true)
+                    inputType = InputType.TYPE_CLASS_TEXT or
+                        InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
+                    imeOptions = EditorInfo.IME_ACTION_DONE
+                    setTextColor(textColor)
+                    setHintTextColor(hintColor)
+                    hint = "输入单词或中文"
+                    textSize = 15f
+                    setPadding(horizontalPadding, 0, horizontalPadding, 0)
+                    gravity = android.view.Gravity.CENTER_VERTICAL
+                    addTextChangedListener(object : TextWatcher {
+                        override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) = Unit
+                        override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) = Unit
+                        override fun afterTextChanged(s: Editable?) {
+                            onValueChange(s?.toString().orEmpty())
+                        }
+                    })
+                    setOnEditorActionListener { v, actionId, _ ->
+                        if (actionId == EditorInfo.IME_ACTION_DONE) {
+                            val imm = v.context.getSystemService(InputMethodManager::class.java)
+                            imm?.hideSoftInputFromWindow(v.windowToken, 0)
+                            v.clearFocus()
+                            true
+                        } else {
+                            false
+                        }
+                    }
+                    editText = this
+                    // 进页面自动聚焦并拉起键盘（等转场动画过去）
+                    postDelayed(
+                        {
+                            requestFocus()
+                            val imm = context.getSystemService(InputMethodManager::class.java)
+                            imm?.showSoftInput(this, InputMethodManager.SHOW_FORCED)
+                        },
+                        400
+                    )
+                }
+            }
+        )
+    }
+}
+
+@Composable
+private fun HistoryList(
+    history: List<SearchHistoryEntity>,
+    onOpen: (SearchHistoryEntity) -> Unit,
+    onAddMistake: (String) -> Unit,
+    onClear: () -> Unit,
+    listState: androidx.wear.compose.foundation.lazy.ScalingLazyListState
+) {
+    ScalingLazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
+        item {
+            ListHeader { Text("搜索历史") }
+        }
+        if (history.isEmpty()) {
+            item {
+                Text(
+                    "还没有查过词",
+                    style = MaterialTheme.typography.body2,
+                    color = MaterialTheme.colors.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        }
+        items(history, key = { it.term }) { item ->
+            // 左滑 = 加入错题集（顺手把这条历史清掉）
+            SwipeLeftRow(
+                onSwipe = { onAddMistake(item.term) },
+                hint = "＋ 错题集"
+            ) {
+                HistoryRow(item, onOpen = { onOpen(item) })
+            }
+        }
+        if (history.isNotEmpty()) {
+            item {
+                Chip(
+                    label = { Text("清空历史") },
+                    onClick = onClear,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun HistoryRow(item: SearchHistoryEntity, onOpen: () -> Unit) {
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(MaterialTheme.colors.surface)
+            .clickable(onClick = onOpen)
+            .padding(horizontal = 12.dp, vertical = 8.dp)
+    ) {
+        Text(item.term, style = MaterialTheme.typography.body1)
+        item.meaning?.let {
+            Text(
+                it,
+                style = MaterialTheme.typography.caption2,
+                color = MaterialTheme.colors.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+    }
+}
+
+@Composable
+private fun ResultList(
+    results: List<top.southfish.engrave.domain.model.DictEntry>,
+    onOpen: (top.southfish.engrave.domain.model.DictEntry) -> Unit,
+    listState: androidx.wear.compose.foundation.lazy.ScalingLazyListState
+) {
+    ScalingLazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
+        if (results.isEmpty()) {
+            item {
+                Text(
+                    "没有相关单词",
+                    style = MaterialTheme.typography.body2,
+                    color = MaterialTheme.colors.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 20.dp)
+                )
+            }
+        }
+        items(results, key = { it.term }) { entry ->
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(MaterialTheme.colors.surface)
+                    .clickable { onOpen(entry) }
+                    .padding(horizontal = 12.dp, vertical = 8.dp)
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(entry.term, style = MaterialTheme.typography.body1)
+                    entry.phonetic?.let {
+                        Text(
+                            "  $it",
+                            style = MaterialTheme.typography.caption2,
+                            color = MaterialTheme.colors.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+                entry.meaningZh?.let {
+                    Text(
+                        it.lineSequence().firstOrNull() ?: it,
+                        style = MaterialTheme.typography.caption2,
+                        color = MaterialTheme.colors.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+        }
+    }
+}

@@ -26,3 +26,12 @@ Desktop.ini
 # app/schemas/ 是 Room 的建表基线，将来写 Migration 要靠它对比版本差异，
 # 不要被上面任何规则误伤。
 # *.bat / *.ps1 里的路径是硬编码到本机 E:\AndroidDev 的，属于本机环境脚本。
+
+# ---------- 本地资料/二进制，不进开源仓库 ----------
+_备份/
+_旧文件待删除/
+手表安装包/
+wordbook-source/
+*.apk
+*.log
+.vscode/

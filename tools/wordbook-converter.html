@@ -1,0 +1,806 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>刻词词典转换器 · Wordbook Converter</title>
+<style>
+  :root {
+    --bg: #f4f6fb;
+    --surface: #ffffff;
+    --surface-2: #eef1f8;
+    --border: #dde3ef;
+    --text: #1c2333;
+    --text-2: #5b6478;
+    --accent: #4f5ee0;
+    --accent-2: #7a5cff;
+    --accent-soft: #eceefe;
+    --ok: #0e9f6e;
+    --warn: #d97706;
+    --err: #dc2626;
+    --shadow: 0 1px 2px rgba(28,35,51,.05), 0 8px 24px -12px rgba(28,35,51,.18);
+    --radius: 14px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #12151f;
+      --surface: #1a1f2e;
+      --surface-2: #222839;
+      --border: #2e3549;
+      --text: #e8ebf4;
+      --text-2: #9aa3b8;
+      --accent: #7b8aff;
+      --accent-2: #a78bff;
+      --accent-soft: #262c49;
+      --shadow: 0 1px 2px rgba(0,0,0,.3), 0 10px 28px -14px rgba(0,0,0,.6);
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: system-ui, -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    background:
+      radial-gradient(1200px 500px at 85% -10%, color-mix(in srgb, var(--accent) 14%, transparent), transparent),
+      radial-gradient(900px 420px at -10% 0%, color-mix(in srgb, var(--accent-2) 12%, transparent), transparent),
+      var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    line-height: 1.55;
+  }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 32px 20px 60px; }
+
+  header.hero { margin-bottom: 26px; }
+  .hero h1 {
+    margin: 0 0 6px; font-size: 30px; letter-spacing: -.5px;
+    background: linear-gradient(120deg, var(--accent), var(--accent-2));
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    display: inline-flex; align-items: center; gap: 12px;
+  }
+  .hero h1 svg { flex: none; }
+  .hero p { margin: 0; color: var(--text-2); font-size: 14.5px; max-width: 760px; }
+  .hero code { background: var(--surface-2); border: 1px solid var(--border); padding: 1px 6px; border-radius: 6px; font-size: 12.5px; }
+
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; align-items: start; }
+  @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+
+  .card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden;
+  }
+  .card-head {
+    display: flex; align-items: center; gap: 10px;
+    padding: 14px 18px; border-bottom: 1px solid var(--border);
+    font-weight: 650; font-size: 15px;
+  }
+  .card-head .num {
+    width: 22px; height: 22px; border-radius: 7px; flex: none;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    color: #fff; font-size: 12.5px; display: grid; place-items: center; font-weight: 700;
+  }
+  .card-body { padding: 16px 18px 18px; }
+  .hint { color: var(--text-2); font-size: 12.5px; margin: 4px 0 0; }
+
+  /* 拖拽区 */
+  #dropZone {
+    border: 1.5px dashed var(--border); border-radius: 12px;
+    padding: 18px 14px; text-align: center; color: var(--text-2);
+    font-size: 13.5px; cursor: pointer; transition: all .18s ease;
+    background: var(--surface-2);
+  }
+  #dropZone:hover { border-color: var(--accent); color: var(--accent); }
+  #dropZone.drag { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); transform: scale(1.01); }
+
+  textarea {
+    width: 100%; min-height: 200px; resize: vertical;
+    border: 1px solid var(--border); border-radius: 10px;
+    background: var(--surface-2); color: var(--text);
+    padding: 12px; font: 12.5px/1.6 ui-monospace, Consolas, "Cascadia Mono", monospace;
+    outline: none; transition: border-color .15s;
+  }
+  textarea:focus { border-color: var(--accent); }
+
+  label.field { display: block; margin-top: 14px; }
+  label.field > span { display: block; font-size: 12.5px; font-weight: 600; color: var(--text-2); margin-bottom: 5px; }
+  select, input[type="text"] {
+    width: 100%; padding: 8px 10px; border: 1px solid var(--border);
+    border-radius: 9px; background: var(--surface-2); color: var(--text);
+    font-size: 13.5px; outline: none;
+  }
+  select:focus, input[type="text"]:focus { border-color: var(--accent); }
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  @media (max-width: 520px) { .row2 { grid-template-columns: 1fr; } }
+
+  /* 列映射 */
+  #mapping { margin-top: 14px; }
+  #mapping .mapgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; }
+  #mapping .mapgrid select { font-size: 12.5px; padding: 6px 8px; }
+  .mapping-tag {
+    display: inline-block; font-size: 11px; padding: 1px 7px; border-radius: 99px;
+    background: var(--accent-soft); color: var(--accent); font-weight: 600; margin-bottom: 4px;
+  }
+
+  /* 开关 */
+  .checks { display: flex; flex-wrap: wrap; gap: 8px 18px; margin-top: 14px; }
+  .checks label { display: inline-flex; gap: 7px; align-items: center; font-size: 13px; color: var(--text-2); cursor: pointer; user-select: none; }
+  .checks input { accent-color: var(--accent); width: 15px; height: 15px; }
+
+  /* 统计 chips */
+  .stats { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+  .chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 12.5px; font-weight: 600; padding: 5px 12px; border-radius: 99px;
+    border: 1px solid var(--border); background: var(--surface-2); color: var(--text-2);
+  }
+  .chip b { color: var(--text); font-size: 13.5px; }
+  .chip.ok { border-color: color-mix(in srgb, var(--ok) 35%, var(--border)); background: color-mix(in srgb, var(--ok) 10%, var(--surface)); }
+  .chip.ok b { color: var(--ok); }
+  .chip.warn { border-color: color-mix(in srgb, var(--warn) 35%, var(--border)); background: color-mix(in srgb, var(--warn) 10%, var(--surface)); }
+  .chip.warn b { color: var(--warn); }
+  .chip.err { border-color: color-mix(in srgb, var(--err) 35%, var(--border)); background: color-mix(in srgb, var(--err) 10%, var(--surface)); }
+  .chip.err b { color: var(--err); }
+
+  /* 预览表格 */
+  .tablewrap { border: 1px solid var(--border); border-radius: 10px; overflow: auto; max-height: 320px; }
+  table { border-collapse: collapse; width: 100%; font-size: 12.5px; }
+  thead th {
+    position: sticky; top: 0; background: var(--surface-2); z-index: 1;
+    text-align: left; padding: 8px 10px; font-size: 11.5px; letter-spacing: .4px;
+    text-transform: uppercase; color: var(--text-2); border-bottom: 1px solid var(--border); white-space: nowrap;
+  }
+  tbody td { padding: 7px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  tbody tr:nth-child(even) { background: color-mix(in srgb, var(--surface-2) 55%, transparent); }
+  tbody tr:hover { background: var(--accent-soft); }
+  td.term { font-weight: 650; white-space: nowrap; }
+  td.pho { color: var(--accent); font-size: 12px; white-space: nowrap; }
+  td.mean { max-width: 260px; }
+  td.skip { color: var(--text-2); font-style: italic; }
+  .empty { padding: 34px 16px; text-align: center; color: var(--text-2); font-size: 13.5px; }
+
+  /* 按钮 */
+  .actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+  button.btn {
+    display: inline-flex; align-items: center; gap: 8px;
+    border: 1px solid transparent; border-radius: 10px; cursor: pointer;
+    padding: 10px 18px; font-size: 14px; font-weight: 650;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    color: #fff; transition: filter .15s, transform .1s;
+  }
+  button.btn:hover { filter: brightness(1.08); }
+  button.btn:active { transform: translateY(1px); }
+  button.btn.ghost { background: var(--surface-2); color: var(--text); border-color: var(--border); }
+  button.btn:disabled { opacity: .45; cursor: not-allowed; filter: none; }
+
+  /* 格式说明 */
+  details.fmt { margin-top: 14px; }
+  details.fmt summary { cursor: pointer; font-size: 13px; font-weight: 600; color: var(--text-2); }
+  details.fmt pre {
+    background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px;
+    padding: 12px; font-size: 12px; overflow: auto; margin: 10px 0 0;
+  }
+  footer { margin-top: 30px; text-align: center; color: var(--text-2); font-size: 12px; }
+  .toast {
+    position: fixed; left: 50%; bottom: 26px; transform: translateX(-50%) translateY(80px);
+    background: var(--text); color: var(--bg); padding: 10px 20px; border-radius: 99px;
+    font-size: 13.5px; font-weight: 600; opacity: 0; transition: all .3s cubic-bezier(.2,.9,.3,1.2); pointer-events: none;
+    box-shadow: var(--shadow);
+  }
+  .toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="hero">
+    <h1>
+      <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2.5"/>
+      </svg>
+      刻词词典转换器
+    </h1>
+    <p>把 CSV / TSV / JSON / 自定义分隔符等常见词典数据，转换为<strong>刻词（Engrave）</strong>可直接导入的词书 JSON。
+      导出后把文件传入手表，在应用的「词书管理 → 从设备导入词书」中选择即可。全程本地运行，不上传任何数据。</p>
+  </header>
+
+  <div class="grid">
+    <!-- 左：输入 -->
+    <section class="card">
+      <div class="card-head"><span class="num">1</span>输入词典数据</div>
+      <div class="card-body">
+        <div id="dropZone">
+          <b>点击选择文件</b> 或将文件拖到这里<br>
+          <span style="font-size:12px">支持 .csv / .tsv / .txt / .json，或直接在下方粘贴</span>
+        </div>
+        <input type="file" id="fileInput" accept=".csv,.tsv,.txt,.json,.dic,.dict" style="display:none">
+
+        <label class="field"><span>粘贴文本（与文件二选一，粘贴优先）</span>
+          <textarea id="inputText" spellcheck="false" placeholder="示例 1（TSV / 有道导出）：
+apple	/ˈæp.əl/	n. 苹果
+banana	/bəˈnɑːnə/	n. 香蕉
+
+示例 2（JSON）：
+[{&quot;word&quot;:&quot;apple&quot;,&quot;translation&quot;:&quot;n. 苹果&quot;,&quot;phonetic&quot;:&quot;/ˈæp.əl/&quot;}]"></textarea>
+        </label>
+
+        <div class="row2">
+          <label class="field"><span>输入格式</span>
+            <select id="formatSel">
+              <option value="auto" selected>自动检测</option>
+              <option value="json">JSON（数组或键值对）</option>
+              <option value="tsv">TSV / 制表符分隔</option>
+              <option value="csv">CSV / 逗号分隔</option>
+              <option value="custom">自定义分隔符</option>
+            </select>
+          </label>
+          <label class="field" id="customSepWrap" style="display:none"><span>自定义分隔符</span>
+            <select id="customSep">
+              <option value="=">等号 =</option>
+              <option value=":">冒号 :</option>
+              <option value="|">竖线 |</option>
+              <option value=";">分号 ;</option>
+              <option value="——">破折号 ——</option>
+            </select>
+          </label>
+        </div>
+
+        <div id="mapping" style="display:none">
+          <span style="font-size:12.5px;font-weight:600;color:var(--text-2)">
+            列映射 <span class="mapping-tag" id="detectTag">自动猜测</span>
+          </span>
+          <div class="mapgrid">
+            <div><span class="mapping-tag">单词 *</span><select id="mapTerm"></select></div>
+            <div><span class="mapping-tag">释义 *</span><select id="mapMeaning"></select></div>
+            <div><span class="mapping-tag">音标</span><select id="mapPhonetic"></select></div>
+            <div><span class="mapping-tag">例句</span><select id="mapExample"></select></div>
+            <div><span class="mapping-tag">例句翻译</span><select id="mapExampleTr"></select></div>
+          </div>
+          <p class="hint">自动猜测基于列名关键词（word / 单词 / translation / 释义 / 音标 …），猜错可手动调整，实时生效。</p>
+        </div>
+
+        <div class="checks">
+          <label><input type="checkbox" id="optDedupe" checked> 按单词去重</label>
+          <label><input type="checkbox" id="optPhonetic" checked> 音标自动补斜杠</label>
+          <label><input type="checkbox" id="optStrip" checked> 清理 HTML 标签</label>
+          <label><input type="checkbox" id="optSkipEmpty" checked> 跳过无释义的行</label>
+        </div>
+      </div>
+    </section>
+
+    <!-- 右：导出 -->
+    <section class="card">
+      <div class="card-head"><span class="num">2</span>导出词书</div>
+      <div class="card-body">
+        <div class="row2">
+          <label class="field" style="margin-top:0"><span>词书名称 *</span>
+            <input type="text" id="bookName" placeholder="例：雅思核心词汇">
+          </label>
+          <label class="field" style="margin-top:0"><span>词书描述</span>
+            <input type="text" id="bookDesc" placeholder="例：自整理，2026 版">
+          </label>
+        </div>
+
+        <div class="stats" id="stats"></div>
+
+        <div class="tablewrap">
+          <table id="preview">
+            <thead><tr id="previewHead"></tr></thead>
+            <tbody id="previewBody"></tbody>
+          </table>
+          <div class="empty" id="previewEmpty">等待输入数据…<br><span style="font-size:12px">解析结果会实时预览在这里（最多显示 80 条）</span></div>
+        </div>
+
+        <div class="actions">
+          <button class="btn" id="btnDownload" disabled>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0l-4-4m4 4l4-4"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+            下载 JSON
+          </button>
+          <button class="btn ghost" id="btnCopy" disabled>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>
+            复制到剪贴板
+          </button>
+        </div>
+
+        <details class="fmt">
+          <summary>刻词词书 JSON 格式说明</summary>
+          <pre>{
+  "name": "词书名称",
+  "description": "词书描述（可选）",
+  "words": [
+    {
+      "term": "apple",
+      "meaning": "n. 苹果",
+      "phonetic": "/ˈæp.əl/",
+      "example": "I ate an apple.",
+      "exampleTranslation": "我吃了一个苹果。"
+    }
+  ]
+}</pre>
+          <p class="hint">term 与 meaning 必填，其余字段可选；解析失败的条目会被应用自动跳过。</p>
+        </details>
+      </div>
+    </section>
+  </div>
+
+  <footer>刻词词典转换器 · 纯前端本地工具，数据不出浏览器 · 为 Engrave (top.southfish.engrave) v0.1BETA 生成</footer>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function () {
+  'use strict';
+
+  var $ = function (id) { return document.getElementById(id); };
+  var els = {
+    dropZone: $('dropZone'), fileInput: $('fileInput'), inputText: $('inputText'),
+    formatSel: $('formatSel'), customSepWrap: $('customSepWrap'), customSep: $('customSep'),
+    mapping: $('mapping'), detectTag: $('detectTag'),
+    mapTerm: $('mapTerm'), mapMeaning: $('mapMeaning'), mapPhonetic: $('mapPhonetic'),
+    mapExample: $('mapExample'), mapExampleTr: $('mapExampleTr'),
+    optDedupe: $('optDedupe'), optPhonetic: $('optPhonetic'), optStrip: $('optStrip'), optSkipEmpty: $('optSkipEmpty'),
+    bookName: $('bookName'), bookDesc: $('bookDesc'),
+    stats: $('stats'), previewHead: $('previewHead'), previewBody: $('previewBody'),
+    previewEmpty: $('previewEmpty'), btnDownload: $('btnDownload'), btnCopy: $('btnCopy'),
+    toast: $('toast')
+  };
+
+  var state = { entries: [], skipped: 0, duplicated: 0, columns: 0 };
+
+  /* ---------------- toast ---------------- */
+  var toastTimer = null;
+  function toast(msg) {
+    els.toast.textContent = msg;
+    els.toast.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { els.toast.classList.remove('show'); }, 2200);
+  }
+
+  /* ---------------- 文件输入 ---------------- */
+  els.dropZone.addEventListener('click', function () { els.fileInput.click(); });
+  els.fileInput.addEventListener('change', function () {
+    var f = this.files && this.files[0];
+    if (f) readFile(f);
+    this.value = '';
+  });
+  ['dragover', 'dragenter'].forEach(function (ev) {
+    els.dropZone.addEventListener(ev, function (e) {
+      e.preventDefault();
+      els.dropZone.classList.add('drag');
+    });
+  });
+  ['dragleave', 'drop'].forEach(function (ev) {
+    els.dropZone.addEventListener(ev, function (e) {
+      e.preventDefault();
+      els.dropZone.classList.remove('drag');
+    });
+  });
+  els.dropZone.addEventListener('drop', function (e) {
+    var f = e.dataTransfer.files && e.dataTransfer.files[0];
+    if (f) readFile(f);
+  });
+  function readFile(file) {
+    var reader = new FileReader();
+    reader.onload = function () {
+      els.inputText.value = String(reader.result || '');
+      toast('已载入文件：' + file.name);
+      update();
+    };
+    reader.onerror = function () { toast('文件读取失败'); };
+    reader.readAsText(file, 'UTF-8');
+  }
+
+  /* ---------------- 清洗工具 ---------------- */
+  function cleanText(s) {
+    if (s == null) return '';
+    s = String(s);
+    if (els.optStrip.checked) {
+      s = s
+        .replace(/<br\s*\/?>/gi, ' ')
+        .replace(/<\/(p|div|li|tr|h\d)>/gi, ' ')
+        .replace(/<[^>]+>/g, '')
+        .replace(/&nbsp;/gi, ' ')
+        .replace(/&amp;/gi, '&').replace(/&lt;/gi, '<').replace(/&gt;/gi, '>')
+        .replace(/&quot;/gi, '"').replace(/&#39;/gi, "'");
+    }
+    return s.replace(/\s+/g, ' ').trim();
+  }
+
+  function normPhonetic(p) {
+    p = cleanText(p);
+    if (!p) return '';
+    p = p.replace(/^[\[\(]\s*/, '').replace(/\s*[\]\)]$/, '').trim();
+    if (!p) return '';
+    if (p.startsWith('/')) return p.endsWith('/') ? p : p + '/';
+    return '/' + p.replace(/^\/+|\/+$/g, '') + '/';
+  }
+
+  /* ---------------- CSV 解析（RFC4180 简版） ---------------- */
+  function splitRows(text, sep, quoteAware) {
+    var rows = [], row = [], cell = '', i = 0, inQuote = false;
+    if (!quoteAware) {
+      return text.split(/\r\n|\n|\r/).map(function (r) { return r.split(sep); });
+    }
+    while (i < text.length) {
+      var ch = text[i];
+      if (inQuote) {
+        if (ch === '"') {
+          if (text[i + 1] === '"') { cell += '"'; i += 2; continue; }
+          inQuote = false; i++; continue;
+        }
+        cell += ch; i++; continue;
+      }
+      if (quoteAware && ch === '"' && cell === '') { inQuote = true; i++; continue; }
+      if (ch === sep) { row.push(cell); cell = ''; i++; continue; }
+      if (ch === '\r') { i++; continue; }
+      if (ch === '\n') { row.push(cell); rows.push(row); row = []; cell = ''; i++; continue; }
+      cell += ch; i++;
+    }
+    if (cell !== '' || row.length) { row.push(cell); rows.push(row); }
+    return rows;
+  }
+
+  /* ---------------- 表头检测 ---------------- */
+  var HEAD_KEYS = /^(term|word|words?|headword|单词|词头|词语|english)$/i;
+  function looksLikeHeader(cells) {
+    return cells.some(function (c) { return HEAD_KEYS.test(cleanText(c)); }) ||
+      cells.some(function (c) {
+        var v = cleanText(c).toLowerCase();
+        return /^(meaning|translation|definition|释义|中文|解释|phonetic|音标|uk|us|ipa|example|例句)$/.test(v);
+      });
+  }
+
+  /* ---------------- JSON 解析 ---------------- */
+  function tryParseJson(text) {
+    var t = text.trim();
+    if (!(t.startsWith('{') || t.startsWith('['))) return null;
+    var data;
+    try { data = JSON.parse(t); } catch (e) { return null; }
+    return data;
+  }
+  var TERM_KEYS = ['term', 'word', 'headword', '单词', '词头', 'english'];
+  var MEAN_KEYS = ['meaning', 'translation', 'definition', 'trans', '中文', '释义', '解释', '汉语'];
+  var PHON_KEYS = ['phonetic', '音标', 'uk', 'ipa', 'pron', 'pronunciation'];
+  var EX_KEYS = ['example', '例句', 'sentence'];
+  var EXTR_KEYS = ['exampletranslation', 'example_translation', '例句翻译', '例句中文', 'senttrans'];
+  function pickKey(obj, keys) {
+    for (var k = 0; k < keys.length; k++) {
+      for (var name in obj) {
+        if (name.toLowerCase().replace(/[\s_-]/g, '') === keys[k].toLowerCase().replace(/[\s_-]/g, '')) {
+          return name;
+        }
+      }
+    }
+    return null;
+  }
+  function entriesFromJsonArray(arr) {
+    var out = [];
+    arr.forEach(function (item) {
+      if (item == null) return;
+      if (typeof item !== 'object') {
+        out.push({ term: cleanText(item), meaning: '' });
+        return;
+      }
+      var tk = pickKey(item, TERM_KEYS), mk = pickKey(item, MEAN_KEYS);
+      if (!tk && !mk) { // 无识别字段 → 第一/第二个值兜底
+        var vals = Object.keys(item).map(function (k) { return item[k]; });
+        out.push({ term: cleanText(vals[0]), meaning: cleanText(vals[1]) });
+        return;
+      }
+      var ph = pickKey(item, PHON_KEYS), ex = pickKey(item, EX_KEYS), et = pickKey(item, EXTR_KEYS);
+      var meaning = mk ? item[mk] : '';
+      if (Array.isArray(meaning)) meaning = meaning.join('；');
+      out.push({
+        term: tk ? item[tk] : '',
+        meaning: meaning,
+        phonetic: ph ? item[ph] : '',
+        example: ex ? item[ex] : '',
+        exampleTranslation: et ? item[et] : ''
+      });
+    });
+    return out;
+  }
+  function entriesFromJsonObject(obj) {
+    var out = [];
+    Object.keys(obj).forEach(function (word) {
+      var v = obj[word];
+      if (v != null && typeof v === 'object' && !Array.isArray(v)) {
+        var mk = pickKey(v, MEAN_KEYS) || (v.meaning !== undefined ? 'meaning' : null);
+        var ph = pickKey(v, PHON_KEYS), ex = pickKey(v, EX_KEYS), et = pickKey(v, EXTR_KEYS);
+        out.push({
+          term: word,
+          meaning: mk ? v[mk] : '',
+          phonetic: ph ? v[ph] : '',
+          example: ex ? v[ex] : '',
+          exampleTranslation: et ? v[et] : ''
+        });
+      } else if (Array.isArray(v)) {
+        out.push({ term: word, meaning: v.join('；') });
+      } else {
+        out.push({ term: word, meaning: String(v) });
+      }
+    });
+    return out;
+  }
+
+  /* ---------------- 表格解析 ---------------- */
+  function guessColumnMap(rows, hasHeader) {
+    var colCount = Math.max.apply(null, rows.map(function (r) { return r.length; }));
+    var map = { term: 0, meaning: 1, phonetic: -1, example: -1, exampleTr: -1 };
+    if (hasHeader) {
+      var head = rows[0].map(function (c) { return cleanText(c).toLowerCase(); });
+      head.forEach(function (h, i) {
+        var n = h.replace(/[\s_]/g, '');
+        if (/^(term|word|单词|词头|english)/.test(n)) map.term = i;
+        else if (/^(meaning|translation|definition|释义|中文|解释|汉语)/.test(n)) map.meaning = i;
+        else if (/^(phonetic|音标|uk|us|ipa|pron)/.test(n)) map.phonetic = i;
+        else if (/^(example|例句)$/.test(n)) map.example = i;
+        else if (/^(exampletranslation|例句翻译|例句中文|senttrans)/.test(n)) map.exampleTr = i;
+      });
+      // 逐列精确匹配失败时按关键词模糊兜底
+      if (map.meaning === 1 && head.length > 2) {
+        for (var i = 1; i < head.length; i++) {
+          if (/释义|中文|translation|meaning|解释/.test(head[i])) { map.meaning = i; break; }
+        }
+      }
+    }
+    return { map: map, colCount: colCount };
+  }
+
+  function buildColumnSelectors(colCount, guess) {
+    function fill(sel, def) {
+      sel.innerHTML = '';
+      var oNone = document.createElement('option');
+      oNone.value = '-1'; oNone.textContent = '（无）';
+      sel.appendChild(oNone);
+      for (var i = 0; i < colCount; i++) {
+        var o = document.createElement('option');
+        o.value = String(i);
+        o.textContent = '第 ' + (i + 1) + ' 列' + (guess.hasHeader && guess.headerCells[i] ? '：' + guess.headerCells[i].slice(0, 10) : '');
+        sel.appendChild(o);
+      }
+      sel.value = String(def);
+    }
+    fill(els.mapTerm, guess.map.term);
+    fill(els.mapMeaning, guess.map.meaning);
+    fill(els.mapPhonetic, guess.map.phonetic);
+    fill(els.mapExample, guess.map.example);
+    fill(els.mapExampleTr, guess.map.exampleTr);
+  }
+
+  function currentMap() {
+    return {
+      term: parseInt(els.mapTerm.value, 10),
+      meaning: parseInt(els.mapMeaning.value, 10),
+      phonetic: parseInt(els.mapPhonetic.value, 10),
+      example: parseInt(els.mapExample.value, 10),
+      exampleTr: parseInt(els.mapExampleTr.value, 10)
+    };
+  }
+
+  function entriesFromRows(rows, opts) {
+    var sep = opts.sep, quoteAware = opts.quoteAware, custom = opts.custom;
+    var parsed = splitRows(rows, sep, quoteAware)
+      .filter(function (r) { return r.some(function (c) { return cleanText(c) !== ''; }); });
+    var hasHeader = parsed.length > 1 && looksLikeHeader(parsed[0]);
+    var guess = guessColumnMap(parsed, hasHeader);
+    state.columns = guess.colCount;
+    buildColumnSelectors(guess.colCount, { hasHeader: hasHeader, headerCells: hasHeader ? parsed[0] : [], map: guess.map });
+    els.mapping.style.display = 'block';
+    if (!custom) els.detectTag.textContent = hasHeader ? '已识别表头' : '无表头 · 按位置猜测';
+
+    var body = hasHeader ? parsed.slice(1) : parsed;
+    // 简单自定义格式（word=meaning）复用列映射无意义，直接两段式
+    var out = [], skipped = 0;
+    var m = custom ? { term: 0, meaning: 1, phonetic: 2, example: 3, exampleTr: 4 } : currentMap();
+    body.forEach(function (r) {
+      var term = m.term >= 0 ? cleanText(r[m.term]) : '';
+      var meaning = m.meaning >= 0 ? cleanText(r[m.meaning]) : '';
+      if (custom) {
+        var line = r.join(sep);
+        var idx = line.indexOf(sep);
+        term = cleanText(line.slice(0, idx));
+        meaning = cleanText(line.slice(idx + sep.length));
+      }
+      if (opts.skipEmpty && meaning === '') { skipped++; return; }
+      if (term === '') { skipped++; return; }
+      out.push({
+        term: term,
+        meaning: meaning,
+        phonetic: m.phonetic >= 0 && !custom ? r[m.phonetic] : '',
+        example: m.example >= 0 && !custom ? r[m.example] : '',
+        exampleTranslation: m.exampleTr >= 0 && !custom ? r[m.exampleTr] : ''
+      });
+    });
+    return { entries: out, skipped: skipped };
+  }
+
+  /* ---------------- 主解析流程 ---------------- */
+  function parseInput() {
+    state.entries = []; state.skipped = 0; state.duplicated = 0; state.columns = 0;
+    var text = els.inputText.value;
+    if (!text.trim()) { els.mapping.style.display = 'none'; return; }
+
+    var fmt = els.formatSel.value;
+    var entries = null, skipped = 0;
+
+    if (fmt === 'json') {
+      var data = tryParseJson(text);
+      if (data == null) { toast('JSON 解析失败，请检查格式'); }
+      else if (Array.isArray(data)) { entries = entriesFromJsonArray(data); }
+      else { entries = entriesFromJsonObject(data); }
+      els.mapping.style.display = 'none';
+    } else if (fmt === 'auto') {
+      var data2 = tryParseJson(text);
+      if (data2 != null) {
+        entries = Array.isArray(data2) ? entriesFromJsonArray(data2) : entriesFromJsonObject(data2);
+        els.mapping.style.display = 'none';
+      } else {
+        // 自动检测分隔符：tab > 逗号 > 竖线 > 分号 > 自定义符号
+        var firstLines = text.split(/\r?\n/).filter(function (l) { return l.trim(); }).slice(0, 30);
+        function countSep(l, s) { return l.split(s).length - 1; }
+        function medianCount(s) {
+          var arr = firstLines.map(function (l) { return countSep(l, s); }).sort(function (a, b) { return a - b; });
+          return arr.length ? arr[Math.floor(arr.length / 2)] : 0;
+        }
+        var seps = [['\t', 'tsv', 1], [',', 'csv', 1], ['|', 'custom', 0], [';', 'custom', 0], [':', 'custom', 0], ['=', 'custom', 0], ['——', 'custom', 0]];
+        var best = null;
+        for (var i = 0; i < seps.length; i++) {
+          var c = medianCount(seps[i][0]);
+          if (c > 0 && (!best || c > best.count)) best = { sep: seps[i][0], count: c, kind: seps[i][1], quoteAware: seps[i][2] === 1 };
+        }
+        if (!best) { toast('无法识别分隔符，请手动选择格式'); return; }
+        var res = entriesFromRows(text, { sep: best.sep, quoteAware: best.quoteAware, custom: best.kind === 'custom', skipEmpty: els.optSkipEmpty.checked });
+        entries = res.entries; skipped = res.skipped;
+      }
+    } else if (fmt === 'custom') {
+      var res2 = entriesFromRows(text, { sep: els.customSep.value, quoteAware: false, custom: true, skipEmpty: els.optSkipEmpty.checked });
+      entries = res2.entries; skipped = res2.skipped;
+    } else { // tsv / csv
+      var res3 = entriesFromRows(text, { sep: fmt === 'tsv' ? '\t' : ',', quoteAware: fmt === 'csv', custom: false, skipEmpty: els.optSkipEmpty.checked });
+      entries = res3.entries; skipped = res3.skipped;
+    }
+
+    if (entries) {
+      // 音标规范化 + 清洗
+      entries.forEach(function (e) {
+        e.term = cleanText(e.term);
+        e.meaning = cleanText(e.meaning);
+        e.phonetic = els.optPhonetic.checked ? normPhonetic(e.phonetic) : cleanText(e.phonetic);
+        e.example = cleanText(e.example);
+        e.exampleTranslation = cleanText(e.exampleTranslation);
+      });
+      // 跳过无释义（JSON 路径也遵守）
+      if (els.optSkipEmpty.checked) {
+        var kept = [];
+        entries.forEach(function (e) {
+          if (e.meaning === '') { skipped++; } else { kept.push(e); }
+        });
+        entries = kept;
+      }
+      // 去重
+      var seen = Object.create(null), deduped = [], dup = 0;
+      entries.forEach(function (e) {
+        var key = e.term.toLowerCase();
+        if (els.optDedupe.checked && seen[key]) { dup++; return; }
+        seen[key] = true; deduped.push(e);
+      });
+      state.entries = deduped;
+      state.skipped = skipped;
+      state.duplicated = dup;
+    }
+  }
+
+  /* ---------------- 渲染 ---------------- */
+  function render() {
+    var s = els.stats;
+    s.innerHTML = '';
+    function chip(cls, label, num) {
+      var d = document.createElement('span');
+      d.className = 'chip ' + (cls || '');
+      d.innerHTML = '<b>' + num + '</b> ' + label;
+      s.appendChild(d);
+    }
+    chip('ok', '条单词', state.entries.length);
+    if (state.skipped) chip('warn', '跳过', state.skipped);
+    if (state.duplicated) chip('warn', '重复', state.duplicated);
+
+    els.previewHead.innerHTML = '<th>#</th><th>单词</th><th>音标</th><th>释义</th><th>例句</th>';
+    els.previewBody.innerHTML = '';
+    if (!state.entries.length) {
+      els.previewEmpty.style.display = 'block';
+      els.previewHead.innerHTML = '';
+      els.btnDownload.disabled = true;
+      els.btnCopy.disabled = true;
+      return;
+    }
+    els.previewEmpty.style.display = 'none';
+    els.btnDownload.disabled = false;
+    els.btnCopy.disabled = false;
+
+    var frag = document.createDocumentFragment();
+    state.entries.slice(0, 80).forEach(function (e, i) {
+      var tr = document.createElement('tr');
+      tr.innerHTML =
+        '<td class="skip">' + (i + 1) + '</td>' +
+        '<td class="term"></td>' +
+        '<td class="pho"></td>' +
+        '<td class="mean"></td>' +
+        '<td class="skip"></td>';
+      tr.children[1].textContent = e.term;
+      tr.children[2].textContent = e.phonetic || '—';
+      tr.children[3].textContent = e.meaning;
+      var ex = e.example ? e.example + (e.exampleTranslation ? ' / ' + e.exampleTranslation : '') : '—';
+      tr.children[4].textContent = ex;
+      frag.appendChild(tr);
+    });
+    els.previewBody.appendChild(frag);
+    if (state.entries.length > 80) {
+      var more = document.createElement('tr');
+      more.innerHTML = '<td colspan="5" class="skip" style="text-align:center">… 其余 ' + (state.entries.length - 80) + ' 条已包含在导出文件中</td>';
+      els.previewBody.appendChild(more);
+    }
+  }
+
+  function buildJson() {
+    var name = els.bookName.value.trim() || '未命名词书';
+    var desc = els.bookDesc.value.trim();
+    var words = state.entries.map(function (e) {
+      var w = { term: e.term, meaning: e.meaning };
+      if (e.phonetic) w.phonetic = e.phonetic;
+      if (e.example) w.example = e.example;
+      if (e.exampleTranslation) w.exampleTranslation = e.exampleTranslation;
+      return w;
+    });
+    var obj = { name: name, description: desc, words: words };
+    return JSON.stringify(obj, null, 2);
+  }
+
+  function update() {
+    try { parseInput(); } catch (err) { console.error(err); toast('解析出错：' + err.message); }
+    render();
+  }
+
+  /* ---------------- 导出 ---------------- */
+  els.btnDownload.addEventListener('click', function () {
+    if (!state.entries.length) return;
+    var name = els.bookName.value.trim() || '未命名词书';
+    var blob = new Blob([buildJson()], { type: 'application/json;charset=utf-8' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = name.replace(/[\\/:*?"<>|]/g, '_') + '.json';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 800);
+    toast('已下载：' + a.download);
+  });
+  els.btnCopy.addEventListener('click', function () {
+    if (!state.entries.length) return;
+    navigator.clipboard.writeText(buildJson()).then(function () { toast('已复制 JSON 到剪贴板'); })
+      .catch(function () { toast('复制失败，请改用下载'); });
+  });
+
+  /* ---------------- 事件绑定 ---------------- */
+  var debounceTimer = null;
+  els.inputText.addEventListener('input', function () {
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(update, 350);
+  });
+  ['change', 'input'].forEach(function (ev) {
+    [els.formatSel, els.customSep, els.optDedupe, els.optPhonetic, els.optStrip, els.optSkipEmpty,
+     els.mapTerm, els.mapMeaning, els.mapPhonetic, els.mapExample, els.mapExampleTr,
+     els.bookName, els.bookDesc].forEach(function (el) {
+      el.addEventListener(ev, function () {
+        if (ev === 'change' || el === els.bookName || el === els.bookDesc) update();
+      });
+    });
+  });
+  els.formatSel.addEventListener('change', function () {
+    els.customSepWrap.style.display = els.formatSel.value === 'custom' ? 'block' : 'none';
+  });
+  // 列映射变化立即重渲染（不必重新解析文本）
+  [els.mapTerm, els.mapMeaning, els.mapPhonetic, els.mapExample, els.mapExampleTr].forEach(function (el) {
+    el.addEventListener('change', update);
+  });
+})();
+</script>
+</body>
+</html>

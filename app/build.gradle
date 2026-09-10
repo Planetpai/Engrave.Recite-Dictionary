@@ -5,20 +5,25 @@ plugins {
 }
 
 android {
-    namespace 'com.example.vocabwatch'
+    namespace 'top.southfish.engrave'
     compileSdk 34
 
     defaultConfig {
-        applicationId "com.example.vocabwatch"
+        applicationId "top.southfish.engrave"
         minSdk 30
-        targetSdk 34
+        // 29：One UI Watch 只有旧式应用（targetSdk≤29 传统存储）才会出现在
+        // 设置→安全与隐私→许可管理器→文件 里，用户才能手动授予存储权限；
+        // targetSdk 30+ 在手表上没有任何用户可授予的文件权限（无所有文件访问页、SAF 是空壳）
+        targetSdk 29
         versionCode 1
-        versionName "1.0"
+        versionName "0.1BETA"
     }
 
     buildTypes {
         release {
             minifyEnabled true
+            // 侧载分发包用 debug 密钥签名：可直接覆盖手表上的旧 debug 版，免卸载保数据
+            signingConfig signingConfigs.debug
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
@@ -37,6 +42,12 @@ android {
     }
     testOptions {
         unitTests.returnDefaultValues = true
+    }
+    lint {
+        // targetSdk 29 是有意保留（One UI Watch 旧式存储权限，见 defaultConfig 注释），
+        // 其过期告警不应阻断 release 打包
+        abortOnError false
+        checkReleaseBuilds false
     }
 }
 
