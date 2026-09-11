@@ -1,4 +1,4 @@
-# 刻词（Engrave）· Wear OS 手表背单词
+# 刻词（Engrave）· Wear OS 手表背单词和字典
 
 > ## ⚠️ 本软件由在人工辅助下的 AI 生成
 > ## 🤖 由 trae、zcode、qoder 三家 AI 平台共同生成
