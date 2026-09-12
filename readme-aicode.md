@@ -7,17 +7,17 @@
 
 ## 0. 项目身份速览（AI 必读）
 
-| 项目 | 内容 |
-|---|---|
-| 应用名 | **刻词**（英文 Engrave） |
-| 包名 applicationId / namespace | `top.southfish.engrave`（2026-09-09 由 `com.example.vocabwatch` 迁移，**不可再改**） |
-| 版本 | versionName `0.1BETA` / versionCode 1（改版本号在 `app/build.gradle` 的 `defaultConfig`） |
-| 定位 | 独立运行于 Wear OS 手表的背单词应用（无手机伴侣端） |
-| 技术栈 | Kotlin + Jetpack Compose for Wear OS 1.2.1 + Room 2.6.1 + DataStore |
-| minSdk / targetSdk / compileSdk | 30 / **29** / 34（targetSdk 29 是刻意的：One UI Watch 只给 targetSdk≤29 传统存储应用暴露可授予的存储权限；30+ 在手表上无任何用户可授予的文件权限。**不可升**） |
-| 开发者 | SouthFish；AI 协作平台 qoder / zcode / trae |
-| 开源依赖 | Jetpack Compose/AndroidX/Room（Apache-2.0）、ECDICT 词典数据（MIT） |
-| 调试设备 | 三星 Galaxy Watch4 真机（WiFi adb，IP 和端口都会变：曾用 192.168.31.118:44767 → 192.168.1.104:36417，连不上就问用户要新的）；另有 450×450 圆屏模拟器 |
+| 项目                              | 内容                                                                                                                |
+| ------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| 应用名                             | **刻词**（英文 Engrave）                                                                                                |
+| 包名 applicationId / namespace    | `top.southfish.engrave`（2026-09-09 由 `com.example.vocabwatch` 迁移，**不可再改**）                                        |
+| 版本                              | versionName `0.1BETA` / versionCode 1（改版本号在 `app/build.gradle` 的 `defaultConfig`）                                 |
+| 定位                              | 独立运行于 Wear OS 手表的背单词应用（无手机伴侣端）                                                                                    |
+| 技术栈                             | Kotlin + Jetpack Compose for Wear OS 1.2.1 + Room 2.6.1 + DataStore                                               |
+| minSdk / targetSdk / compileSdk | 28 / **29** / 34（targetSdk 29 是刻意的：One UI Watch 只给 targetSdk≤29 传统存储应用暴露可授予的存储权限；30+ 在手表上无任何用户可授予的文件权限。**不可升**）   |
+| 开发者                             | SouthFish；AI 协作平台 qoder / zcode / trae                                                                            |
+| 开源依赖                            | Jetpack Compose/AndroidX/Room（Apache-2.0）、ECDICT 词典数据（MIT）                                                        |
+| 调试设备                            | 三星 Galaxy Watch4 真机（WiFi adb，IP 和端口都会变：曾用 192.168.31.118:44767 → 192.168.1.104:36417，连不上就问用户要新的）；另有 450×450 圆屏模拟器 |
 
 **文档分工**：`readme-code.md` = 人类向开发/构建文档；`readme-aicode.md`（本文）= AI 规范 + 模块级硬约束 + 排坑库；`readme-user.md` = 用户说明书。
 
@@ -68,18 +68,18 @@ $env:ANDROID_SDK_ROOT='E:\AndroidDev\sdk'; $env:GRADLE_USER_HOME='E:\AndroidDev\
 
 ## 3. Windows / PowerShell / adb 工具坑（历史踩坑实录）
 
-| 坑 | 处理 |
-|---|---|
-| Edit 工具报成功但文件没变 | Edit 后 Read 回验证；编译错误先查是否 un-landed edit |
-| 含中文的 .ps1 ParserError（乱码 `閫変慨鍏?`） | .ps1 必须 UTF-8 **with BOM**；Edit/Write 工具不带 BOM，需 `[System.IO.File]::WriteAllText($p,$text,(New-Object System.Text.UTF8Encoding($true)))` 重写 |
-| PowerShell `adb exec-out screencap > x.png` 截图损坏 | 文本重定向破坏 PNG 二进制；改 `adb shell screencap -p /sdcard/x.png` + `adb pull` |
-| ConvertFrom-Json 管道进 `@()` 得 `.Count=1` | 先赋值变量再包数组：`$j = Get-Content $f -Raw | ConvertFrom-Json; $arr = @($j)`；字符串插值 `"$f:"` 会被解析成驱动器引用，用 `"${f}:"` |
-| adb 长按不识别 | `input swipe x y x+1 y 1000`（同坐标 swipe 不算长按） |
-| 手表键盘联想条偷点按 | 联想条约 y135；用键盘蓝色对勾提交搜索；深层页退出用 KEYCODE_BACK |
-| 模拟器 MediaStore 无图 | push 图到 `/sdcard/Pictures/` 后发 `MEDIA_SCANNER_SCAN_FILE` 广播 |
-| 验证闹钟 | `adb shell dumpsys alarm \| grep engrave`（旧包名 vocabwatch 时代的命令已失效，注意新包名） |
-| Wear frameworkpackagestubs 空壳 | `ACTION_PICK/GET_CONTENT/OPEN_DOCUMENT` 会 resolve 到 `com.google.android.wearable.frameworkpackagestubs` 的空壳，启动无任何反应；按包名过滤 |
-| Gradle 找不到 JDK/SDK | 检查 §2.1 四个环境变量 |
+| 坑                                                | 处理                                                                                                                                          |
+| ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| Edit 工具报成功但文件没变                                  | Edit 后 Read 回验证；编译错误先查是否 un-landed edit                                                                                                     |
+| 含中文的 .ps1 ParserError（乱码 `閫変慨鍏?`）                | .ps1 必须 UTF-8 **with BOM**；Edit/Write 工具不带 BOM，需 `[System.IO.File]::WriteAllText($p,$text,(New-Object System.Text.UTF8Encoding($true)))` 重写 |
+| PowerShell `adb exec-out screencap > x.png` 截图损坏 | 文本重定向破坏 PNG 二进制；改 `adb shell screencap -p /sdcard/x.png` + `adb pull`                                                                       |
+| ConvertFrom-Json 管道进 `@()` 得 `.Count=1`          | 先赋值变量再包数组：`$j = Get-Content $f -Raw                                                                                                         |
+| adb 长按不识别                                        | `input swipe x y x+1 y 1000`（同坐标 swipe 不算长按）                                                                                                |
+| 手表键盘联想条偷点按                                       | 联想条约 y135；用键盘蓝色对勾提交搜索；深层页退出用 KEYCODE_BACK                                                                                                   |
+| 模拟器 MediaStore 无图                                | push 图到 `/sdcard/Pictures/` 后发 `MEDIA_SCANNER_SCAN_FILE` 广播                                                                                 |
+| 验证闹钟                                             | `adb shell dumpsys alarm \| grep engrave`（旧包名 vocabwatch 时代的命令已失效，注意新包名）                                                                    |
+| Wear frameworkpackagestubs 空壳                    | `ACTION_PICK/GET_CONTENT/OPEN_DOCUMENT` 会 resolve 到 `com.google.android.wearable.frameworkpackagestubs` 的空壳，启动无任何反应；按包名过滤                   |
+| Gradle 找不到 JDK/SDK                               | 检查 §2.1 四个环境变量                                                                                                                              |
 
 ---
 
@@ -224,13 +224,13 @@ SM-2 变体：`Grade`（AGAIN/HARD/GOOD/EASY）→ 下次间隔与熟练度。�
 
 ### 7.1 Room（`data/local`）
 
-| DAO | 职责 |
-|---|---|
-| `WordDao` | 词书单词 CRUD |
+| DAO              | 职责                  |
+| ---------------- | ------------------- |
+| `WordDao`        | 词书单词 CRUD           |
 | `ReviewStateDao` | SRS 状态（熟练度、间隔、到期时间） |
-| `ReviewLogDao` | 评分历史（统计/撤销依据） |
-| `SearchDao` | 搜索查询 |
-| `MistakeDao` | 错题集 |
+| `ReviewLogDao`   | 评分历史（统计/撤销依据）       |
+| `SearchDao`      | 搜索查询                |
+| `MistakeDao`     | 错题集                 |
 
 `DayIndex` 凌晨 4 点切日；Room schema 导出 `app/schemas/`。**改 applicationId/包名后 Room 文件随应用数据目录迁移，旧包名数据不自动迁移**（2026-09-09 迁包名时用户数据即全新开始）。
 
@@ -244,13 +244,13 @@ SM-2 变体：`Grade`（AGAIN/HARD/GOOD/EASY）→ 下次间隔与熟练度。�
 
 ### 8.1 单元测试（`app/src/test/`）
 
-| 测试类 | 覆盖 |
-|---|---|
-| `DayIndexTest` | 学习日切分边界 |
-| `Sm2SchedulerTest` | SRS 各评分档间隔/熟练度演进 |
+| 测试类                          | 覆盖                           |
+| ---------------------------- | ---------------------------- |
+| `DayIndexTest`               | 学习日切分边界                      |
+| `Sm2SchedulerTest`           | SRS 各评分档间隔/熟练度演进             |
 | `GetStudySessionUseCaseTest` | 队列组装、续批排除已见、activeBookIds 透传 |
-| `StudyFlowTest` | 状态机、答错重排、三击撤销、词书见底分支 |
-| `SpellingChunksTest` | 拼写字母切分 |
+| `StudyFlowTest`              | 状态机、答错重排、三击撤销、词书见底分支         |
+| `SpellingChunksTest`         | 拼写字母切分                       |
 
 结果 XML：`app/build/test-results/testDebugUnitTest/`。
 
@@ -278,35 +278,26 @@ SM-2 变体：`Grade`（AGAIN/HARD/GOOD/EASY）→ 下次间隔与熟练度。�
 
 ---
 
-## 10. 常见问题（FAQ / 排坑）
+## 10. 历史已修复常见问题（排坑）
 
-| 现象 | 原因 / 处理 |
-|---|---|
-| 重启后提醒时间变回 08:00 | 设置页轮子在 DataStore 加载前以默认值组合并被回写（§6.5 加载门禁） |
-| 转轮选不中 55 分/23 时 | 用了 firstVisibleItemIndex；改视口中心检测（§6.4） |
-| 卡片单击翻面延迟 | detectTapGestures 双击等待；用 detectFlipAndUndo |
-| 三击撤销误触/不触发 | 同一检测器同一 ~300ms 窗口；拖拽/长按断链 |
-| 头像选图页点按钮没反应 | frameworkpackagestubs 空壳被 resolve；按包名过滤（§6.7） |
-| `BitmapFactory.decodeStream` 返回 null | inJustDecodeBounds=true 属正常，用独立流解码 |
-| 后台收不到提醒 | 精确闹钟权限 + 电池白名单；dumpsys alarm 查（§6.3） |
-| 搜索框打不出字（三星输入法） | 用原生 EditText，禁 BasicTextField |
-| PowerShell 截图损坏 | screencap 落设备再 pull（§3） |
-| 导航恢复栈序反 | 录制器预置 startDestination；恢复前压缩重复路由（§6.6） |
-| 上滑整叠卡一起动 | 只允许顶卡位移，DeckBehind 固定（§6.2） |
-| 测试阶段正面滑动没反应 | 设计如此：先翻面再评分 |
-| 详情页底部内容被裁 | 独立列表 item + 16dp 水平 padding（§6.8） |
-| 例句被提示徽章挤压 | 卡片尺寸下限 0.88/0.78；例句 2 行译文 1 行（§6.11） |
-| 内置词书残留 | retireMissingBuiltInBooks 自动退役；确认 assets 文件名与 sourceKey |
-| 词书 U10 排在 U2 前 | naturalStringOrder（§6.10） |
-| 含中文 .ps1 乱码报错 | UTF-8 with BOM 重写（§3） |
-| ColdStart 判断失效 | MainActivity 必须消费标志；进程单例只对单进程 app 有效（§6.6） |
-| Gradle 找不到 JDK/SDK | §2.1 环境变量 |
-
----
-
-## 11. 变更记录（AI 会话接力用）
-
-- **2026-09-10（凌晨，性能优化会话）**：全面性能优化 5 处——① `DictRepository` 词典连接由「每次查询 open/use/close」改为 `@Volatile` 常驻只读连接（双检查锁 + Mutex），打开时设 `PRAGMA cache_size=-4096`（4MB 页缓存）、`temp_store=MEMORY`；② `SearchViewModel` 搜索触发流补上 200ms 防抖（旧代码只有展示文本防抖，每次按键都打库）；③ `ProfileScreen` 头像 `BitmapFactory.decodeFile` 移到 `Dispatchers.IO` 异步解码（inSampleSize=2，按 avatarImageVersion 刷新）；④ `AvatarPickerScreen` 缩略图 256→220px、新增进程级 LruCache（32 张≈6MB）、删除每格 CircularProgressIndicator 无限动画（改留白格）；⑤ `DetailViewModel` 详情 lookup + findWord 串行改并行（async，runCatching 隔离）。验证：编译 + 单测通过；模拟器（Watch4 AVD, SDK33）全功能回归通过（引导/搜索/空结果态/详情页/我的页滚动/学习卡，无崩溃）；DB 微基准（真实 ecdict_core.db）单次查询 0.38ms→0.04ms（约 10×），纯 open/close 0.23ms、冷尾延迟 5.5ms；PSS 78.1→77.9MB 持平；模拟器 gfxinfo 帧率无显著差异（SwiftShader 软件渲染，帧耗时被 IME/Compose 动画主导，GPU 调度改善需真机验证）。优化前完整备份在 `_备份/优化前-20260909-性能优化前/`（APK + 源码快照 zip）；交付 `手表安装包/刻词-0.1BETA-debug-20260910.apk`，旧包归档 `_旧文件待删除/`。
-- **2026-09-09（晚，二次会话）**：真机验证通过——冷启动回主页 / 热启动恢复搜索页 / 关于区（图标·v0.1BETA·SouthFish·qoder/zcode/trae·双协议）/ Download 导入。**文件权限结论修正**：`READ_EXTERNAL_STORAGE` 可在手表 UI 授予（许可管理器「文件」/运行时弹窗），授予后直接读 Download，推翻当日早前「免 adb 无解」结论；前提 targetSdk 保持 29。旧文件归档至 `_旧文件待删除/`（含 1GB ecdict 弃用全量库、.verify、perm-test*.json、旧 APK/README）；`手表安装包/` 放入 `刻词-0.1BETA-debug-20260909.apk`；readme 修正 targetSdk 29 说明与过期 IP。
-- **2026-09-09**：应用更名「刻词」、包名迁移 `top.southfish.engrave`、版本 0.1BETA；冷/热启动分流（isColdStart）；「我的」页关于区；选图链改两步（厂商图库 → 三星风格应用内网格，移除 Google 照片选择器）；新增 `tools/wordbook-converter.html` 通用词典转换器；文档拆分为 readme-code（人类）/ readme-aicode（本文）。
-- **2026-09-08**：ECDICT 词书切换、词书多选、通知权限流程、NumberWheel 触发区、FilePicker 常驻、长按交互定稿、三击撤销。
+| 现象                                   | 原因 / 处理                                                 |
+| ------------------------------------ | ------------------------------------------------------- |
+| 重启后提醒时间变回 08:00                      | 设置页轮子在 DataStore 加载前以默认值组合并被回写（§6.5 加载门禁）               |
+| 转轮选不中 55 分/23 时                      | 用了 firstVisibleItemIndex；改视口中心检测（§6.4）                  |
+| 卡片单击翻面延迟                             | detectTapGestures 双击等待；用 detectFlipAndUndo              |
+| 三击撤销误触/不触发                           | 同一检测器同一 ~300ms 窗口；拖拽/长按断链                               |
+| 头像选图页点按钮没反应                          | frameworkpackagestubs 空壳被 resolve；按包名过滤（§6.7）           |
+| `BitmapFactory.decodeStream` 返回 null | inJustDecodeBounds=true 属正常，用独立流解码                      |
+| 后台收不到提醒                              | 精确闹钟权限 + 电池白名单；dumpsys alarm 查（§6.3）                    |
+| 搜索框打不出字（三星输入法）                       | 用原生 EditText，禁 BasicTextField                           |
+| PowerShell 截图损坏                      | screencap 落设备再 pull（§3）                                 |
+| 导航恢复栈序反                              | 录制器预置 startDestination；恢复前压缩重复路由（§6.6）                  |
+| 上滑整叠卡一起动                             | 只允许顶卡位移，DeckBehind 固定（§6.2）                             |
+| 测试阶段正面滑动没反应                          | 设计如此：先翻面再评分                                             |
+| 详情页底部内容被裁                            | 独立列表 item + 16dp 水平 padding（§6.8）                       |
+| 例句被提示徽章挤压                            | 卡片尺寸下限 0.88/0.78；例句 2 行译文 1 行（§6.11）                    |
+| 内置词书残留                               | retireMissingBuiltInBooks 自动退役；确认 assets 文件名与 sourceKey |
+| 词书 U10 排在 U2 前                       | naturalStringOrder（§6.10）                               |
+| 含中文 .ps1 乱码报错                        | UTF-8 with BOM 重写（§3）                                   |
+| ColdStart 判断失效                       | MainActivity 必须消费标志；进程单例只对单进程 app 有效（§6.6）              |
+| Gradle 找不到 JDK/SDK                   | §2.1 环境变量                                               |
