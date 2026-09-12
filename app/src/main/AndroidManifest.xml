@@ -17,12 +17,11 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.VIBRATE" />
-    <!-- 精确闹钟：提醒属于闹钟类功能。33+ 走 USE_EXACT_ALARM 自动授予；
-         31-32 声明 SCHEDULE_EXACT_ALARM（那个年代默认授予） -->
-    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
-    <uses-permission
-        android:name="android.permission.SCHEDULE_EXACT_ALARM"
-        android:maxSdkVersion="32" />
+    <!-- 精确闹钟：本应用 targetSdk 29，在 31+ 设备上属于遗留应用，
+         声明 SCHEDULE_EXACT_ALARM 即自动授予（不声明 USE_EXACT_ALARM：
+         那个权限只允许 targetSdk 33+ 的应用声明，lint 会报错）。
+         万一被系统收回，ReminderScheduler 退化为 10 分钟窗口闹钟 -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <!-- 申请电池优化白名单，防止系统清理后台后提醒被推迟 -->
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     <!-- 应用内头像选图：读媒体库（33+ 运行时授权） -->
@@ -70,12 +69,14 @@
             android:exported="true"
             android:label="导入词书">
 
-            <!-- 「我的文件」里打开 / 分享词书 JSON 时出现本应用 -->
-            <intent-filter>
+            <!-- 「我的文件」里打开 / 分享词书 JSON 时出现本应用。
+                 不放 BROWSABLE：那是浏览器 http(s) 链接专用类别，
+                 文件管理器的 VIEW/SEND 只需要 DEFAULT -->
+            <intent-filter
+                tools:ignore="AppLinkUrlError">
                 <action android:name="android.intent.action.VIEW" />
                 <action android:name="android.intent.action.SEND" />
                 <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
                 <data android:mimeType="application/json" />
                 <data android:mimeType="text/plain" />
                 <data android:mimeType="application/octet-stream" />

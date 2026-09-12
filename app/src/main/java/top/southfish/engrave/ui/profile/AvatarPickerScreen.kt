@@ -6,7 +6,9 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.net.Uri
+import android.os.Build
 import android.provider.MediaStore
 import android.util.Size
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -300,7 +302,21 @@ private fun GalleryCell(image: GalleryImage, onClick: () -> Unit) {
         val loaded = withContext(Dispatchers.IO) {
             runCatching {
                 // 格子在 450px 圆屏上约 220px 见方，按这个尺寸取缩略图即可
-                context.contentResolver.loadThumbnail(image.uri, Size(220, 220), null)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    // loadThumbnail 是 API 29 接口，由系统跨进程取缩略图
+                    context.contentResolver.loadThumbnail(image.uri, Size(220, 220), null)
+                } else {
+                    // API 28 兜底：两趟降采样解码（bounds 与实际解码必须用独立流）
+                    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                    context.contentResolver.openInputStream(image.uri)?.use {
+                        BitmapFactory.decodeStream(it, null, bounds)
+                    }
+                    val sample = maxOf(1, minOf(bounds.outWidth, bounds.outHeight) / 220)
+                    val opts = BitmapFactory.Options().apply { inSampleSize = sample }
+                    context.contentResolver.openInputStream(image.uri)?.use { input ->
+                        BitmapFactory.decodeStream(input, null, opts)
+                    }
+                }
             }.getOrNull()
         }
         if (loaded != null) {

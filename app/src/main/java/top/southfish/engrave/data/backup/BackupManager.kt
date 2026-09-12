@@ -4,6 +4,7 @@ import android.content.ContentUris
 import android.content.ContentValues
 import android.content.Context
 import android.net.Uri
+import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
 import java.io.File
@@ -151,14 +152,17 @@ class BackupManager(
             MediaStore.MediaColumns._ID,
             MediaStore.MediaColumns.DISPLAY_NAME
         )
-        runCatching {
-            context.contentResolver.query(
-                MediaStore.Downloads.EXTERNAL_CONTENT_URI,
-                projection,
-                MediaStore.MediaColumns.RELATIVE_PATH + " LIKE ? AND " + MediaStore.MediaColumns.MIME_TYPE + " = ?",
-                arrayOf(DOWNLOAD_DIR + "%", "application/json"),
-                MediaStore.MediaColumns.DATE_ADDED + " DESC"
-            )?.use { cursor ->
+        // MediaStore.Downloads 集合是 API 29 才有的；API 28 直接靠下面的
+        // File 直扫兜底（传统存储 + READ/WRITE 授权）
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            runCatching {
+                context.contentResolver.query(
+                    MediaStore.Downloads.EXTERNAL_CONTENT_URI,
+                    projection,
+                    MediaStore.MediaColumns.RELATIVE_PATH + " LIKE ? AND " + MediaStore.MediaColumns.MIME_TYPE + " = ?",
+                    arrayOf(DOWNLOAD_DIR + "%", "application/json"),
+                    MediaStore.MediaColumns.DATE_ADDED + " DESC"
+                )?.use { cursor ->
                 val idCol = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns._ID)
                 val nameCol = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns.DISPLAY_NAME)
                 while (cursor.moveToNext()) {
@@ -170,6 +174,7 @@ class BackupManager(
                     out[name] = BackupFile(name, uri)
                 }
             }
+        }
         }
 
         if (hasStorageReadPermission()) {
@@ -189,7 +194,9 @@ class BackupManager(
      * targetSdk 29 传统存储下读 Download 靠的就是旧式 READ_EXTERNAL_STORAGE。
      */
     private fun hasStorageReadPermission(): Boolean =
-        Environment.isExternalStorageManager() ||
+        // isExternalStorageManager 是 API 30 接口；28-29 只看传统 READ 授权
+        (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R &&
+            Environment.isExternalStorageManager()) ||
             androidx.core.content.ContextCompat.checkSelfPermission(
                 context, android.Manifest.permission.READ_EXTERNAL_STORAGE
             ) == android.content.pm.PackageManager.PERMISSION_GRANTED
@@ -331,6 +338,13 @@ class BackupManager(
     }
 
     private fun writeDownload(name: String, bytes: ByteArray) {
+        // API 28 没有 MediaStore.Downloads：targetSdk 29 传统存储 + WRITE 授权下
+        // 直接用 java.io.File 写公共 Download 目录
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+            val dir = downloadDir().apply { runCatching { mkdirs() } }
+            java.io.File(dir, name).writeBytes(bytes)
+            return
+        }
         val resolver = context.contentResolver
         val values = ContentValues().apply {
             put(MediaStore.MediaColumns.DISPLAY_NAME, name)

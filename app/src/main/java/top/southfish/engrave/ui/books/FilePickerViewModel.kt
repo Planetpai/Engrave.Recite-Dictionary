@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
 import android.os.Environment
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModel
@@ -89,7 +90,9 @@ class FilePickerViewModel(
      * 若哪天获得了「所有文件访问」（MANAGE）也算通过。
      */
     fun refreshPermission() {
-        val granted = Environment.isExternalStorageManager() ||
+        // isExternalStorageManager 是 API 30 才有的接口；28-29 上只有传统 READ 授权一条路
+        val granted = (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R &&
+            Environment.isExternalStorageManager()) ||
             ContextCompat.checkSelfPermission(
                 appContext, Manifest.permission.READ_EXTERNAL_STORAGE
             ) == PackageManager.PERMISSION_GRANTED

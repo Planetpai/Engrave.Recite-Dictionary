@@ -10,7 +10,7 @@ android {
 
     defaultConfig {
         applicationId "top.southfish.engrave"
-        minSdk 30
+        minSdk 28
         // 29：One UI Watch 只有旧式应用（targetSdk≤29 传统存储）才会出现在
         // 设置→安全与隐私→许可管理器→文件 里，用户才能手动授予存储权限；
         // targetSdk 30+ 在手表上没有任何用户可授予的文件权限（无所有文件访问页、SAF 是空壳）
