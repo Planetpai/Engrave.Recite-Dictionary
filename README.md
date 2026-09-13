@@ -12,7 +12,12 @@
 
 欢迎加入软件交流群：QQ：832695614
 
-#### [刻词网站](kc.southfish.top)（目前还没有想好作什么用）
+#### [刻词网站](https://kc.southfish.top)
+
+#### [访问我的个人网站](https://southfish.top)
+
+
+
 
 # ⚠️目前只在三星watch 4上测试过，兼容性未知
 
