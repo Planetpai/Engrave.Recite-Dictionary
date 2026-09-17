@@ -117,12 +117,20 @@ class StudyRepositoryImpl(
     override suspend fun rescheduleToTomorrow(wordId: Long) {
         val state = reviewStateDao.getByWordId(wordId) ?: return
         if (state.stage == LearningStage.NEW.name) return
-        // 推迟一天：随刷随学里「还不熟」的词明天再出现在复习里
-        reviewStateDao.upsert(state.copy(dueAt = timeProvider.now() + MILLIS_PER_DAY))
+        // 推迟到下一个学习日（凌晨 4 点界），和调度器的天级锚点保持一致
+        reviewStateDao.upsert(state.copy(dueAt = DayIndex.nextRollover(timeProvider.now())))
     }
 
     override suspend fun rescheduleToTomorrowByTerm(term: String) =
         database.wordDao().findByTerm(term)?.let { rescheduleToTomorrow(it.id) } ?: Unit
+
+    override suspend fun graduateStaleCards(now: Long): Int {
+        // 当前学习日的 4 点起点：早于它的学习卡 = 隔了一夜，直接毕业
+        val cutoff = DayIndex.rolloverStart(now)
+        val a = reviewStateDao.graduateStaleLearningCards(cutoff)
+        val b = reviewStateDao.graduateStaleRelearningCards(cutoff)
+        return a + b
+    }
 
     override suspend fun restoreStateAndDropLastLog(
         wordId: Long,

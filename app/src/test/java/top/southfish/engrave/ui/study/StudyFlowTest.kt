@@ -71,6 +71,8 @@ class StudyFlowTest {
 
         override suspend fun rescheduleToTomorrowByTerm(term: String) = Unit
 
+        override suspend fun graduateStaleCards(now: Long): Int = 0
+
         override suspend fun countNewLearnedToday(bookIds: Set<Long>): Int = 0
 
         override suspend fun countReviewsToday(bookIds: Set<Long>): Int = 0

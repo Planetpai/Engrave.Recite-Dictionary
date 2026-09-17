@@ -106,6 +106,48 @@ interface ReviewStateDao {
     @Query("SELECT COUNT(*) FROM review_states WHERE stage = 'NEW'")
     suspend fun countNew(): Int
 
+    /**
+     * 跨日逾期的学习卡自动毕业（学习会话开始时调用）。
+     *
+     * 学习阶段的 10 分钟/1 小时步骤是为「当天会话内反复记」设计的。如果一张卡
+     * 的 dueAt 已经早于当前学习日起点（凌晨 4 点），说明隔了一夜没复习，再让用户
+     * 补走分钟级步骤只会把毕业时间推到第二天（表现为「学完第二天没有复习」）。
+     * 直接毕业为 REVIEW、到期时间设为今天 4 点（已到期），它今天就出现在复习队列。
+     *
+     * - LEARNING：毕业到第一档（1 天）
+     * - RELEARNING：忘词重记卡，间隔取 max(1, 旧间隔×0.5)，stepIndex 对齐阶梯档
+     * 返回受影响行数。
+     */
+    @Query(
+        """
+        UPDATE review_states
+        SET stage = 'REVIEW',
+            stepIndex = 0,
+            intervalDays = 1.0,
+            dueAt = :cutoff
+        WHERE stage = 'LEARNING' AND dueAt < :cutoff
+        """
+    )
+    suspend fun graduateStaleLearningCards(cutoff: Long): Int
+
+    @Query(
+        """
+        UPDATE review_states
+        SET stage = 'REVIEW',
+            intervalDays = MAX(1.0, intervalDays * 0.5),
+            stepIndex = CASE
+                WHEN MAX(1.0, intervalDays * 0.5) < 2 THEN 0
+                WHEN MAX(1.0, intervalDays * 0.5) < 4 THEN 1
+                WHEN MAX(1.0, intervalDays * 0.5) < 7 THEN 2
+                WHEN MAX(1.0, intervalDays * 0.5) < 15 THEN 3
+                ELSE 5
+            END,
+            dueAt = :cutoff
+        WHERE stage = 'RELEARNING' AND dueAt < :cutoff
+        """
+    )
+    suspend fun graduateStaleRelearningCards(cutoff: Long): Int
+
     /** 导出数据用：全部调度状态连着词头一起拿。 */
     @Query(
         """

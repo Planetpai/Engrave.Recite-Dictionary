@@ -75,7 +75,14 @@ fun BooksScreen(
         timeText = { TimeText() },
         positionIndicator = { PositionIndicator(scalingLazyListState = listState) }
     ) {
-        ScalingLazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
+        ScalingLazyColumn(
+            state = listState,
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                top = top.southfish.engrave.ui.components.timeTextPadding(),
+                bottom = 16.dp
+            )
+        ) {
             item { ListHeader { Text("词书管理") } }
 
             // 全部词书：启用集合为空，所有词混在一起背

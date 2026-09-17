@@ -112,7 +112,15 @@ fun OnboardingScreen(
         positionIndicator = { PositionIndicator(scalingLazyListState = listState) }
     ) {
         Crossfade(targetState = state.step, label = "onboarding-step") { step ->
-            ScalingLazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
+            ScalingLazyColumn(
+                state = listState,
+                modifier = Modifier.fillMaxSize(),
+                // 方形屏顶部要给 TimeText 让位，否则标题/状态行被时间压住
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                    top = top.southfish.engrave.ui.components.timeTextPadding(),
+                    bottom = 16.dp
+                )
+            ) {
                 item {
                     ListHeader { Text("配置 ${step + 1}/4 · ${stepTitle(step)}") }
                 }

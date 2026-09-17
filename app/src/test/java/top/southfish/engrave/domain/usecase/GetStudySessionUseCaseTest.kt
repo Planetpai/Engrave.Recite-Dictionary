@@ -73,6 +73,12 @@ class GetStudySessionUseCaseTest {
 
         override suspend fun rescheduleToTomorrowByTerm(term: String) = Unit
 
+        var staleCutoff: Long? = null
+        override suspend fun graduateStaleCards(now: Long): Int {
+            staleCutoff = now
+            return 0
+        }
+
         override suspend fun countNewLearnedToday(bookIds: Set<Long>): Int = newLearnedToday
 
         override suspend fun countReviewsToday(bookIds: Set<Long>): Int = reviewsToday
@@ -141,6 +147,17 @@ class GetStudySessionUseCaseTest {
         val useCase = GetStudySessionUseCase(repo, timeProvider)
 
         assertTrue(useCase(config).isEmpty)
+    }
+
+    @Test
+    fun `开学习会话时先让跨日逾期学习卡毕业`() = runTest {
+        val repo = FakeStudyRepository()
+        val useCase = GetStudySessionUseCase(repo, timeProvider)
+
+        useCase(config)
+
+        // graduateStaleCards 必须在取队列前被调用，参数是当前时间
+        assertEquals(timeProvider.now(), repo.staleCutoff)
     }
 
     @Test

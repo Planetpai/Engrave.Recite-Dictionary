@@ -45,7 +45,11 @@ fun StatsScreen(modifier: Modifier = Modifier) {
     ) {
         ScalingLazyColumn(
             modifier = Modifier.fillMaxSize(),
-            state = listState
+            state = listState,
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                top = top.southfish.engrave.ui.components.timeTextPadding(),
+                bottom = 16.dp
+            )
         ) {
             item {
                 ListHeader { Text("学习统计") }

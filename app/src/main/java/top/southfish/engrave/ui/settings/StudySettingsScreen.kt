@@ -167,7 +167,11 @@ private fun StudySettingsContent(
             state = listState,
             // 转轮条目很高，自动居中吸附会和它打架导致列表滚不动，这里关掉
             autoCentering = null,
-            modifier = Modifier.fillMaxSize()
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                top = top.southfish.engrave.ui.components.timeTextPadding(),
+                bottom = 16.dp
+            )
         ) {
             item { ListHeader { Text("背单词设置") } }
 

@@ -74,7 +74,14 @@ fun DataScreen(
         timeText = { TimeText() },
         positionIndicator = { PositionIndicator(scalingLazyListState = listState) }
     ) {
-        ScalingLazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
+        ScalingLazyColumn(
+            state = listState,
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                top = top.southfish.engrave.ui.components.timeTextPadding(),
+                bottom = 16.dp
+            )
+        ) {
             item { ListHeader { Text("数据管理") } }
 
             item {

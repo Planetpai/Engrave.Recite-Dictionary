@@ -115,7 +115,11 @@ private fun HomeContent(
     ScalingLazyColumn(
         modifier = Modifier.fillMaxSize(),
         state = listState,
-        contentPadding = PaddingValues(top = 8.dp, bottom = 32.dp)
+        contentPadding = PaddingValues(
+            // 方形屏 TimeText 占顶部正中，需要让到 28dp；圆形屏保持 8dp
+            top = top.southfish.engrave.ui.components.timeTextPadding(8.dp),
+            bottom = 32.dp
+        )
     ) {
         item {
             // 顶部胶囊搜索入口（仿系统应用样式）：扁平放大镜 + 「搜索」

@@ -43,6 +43,10 @@ class GetStudySessionUseCase(
         val bookIds = config.activeBookIds
         val now = timeProvider.now()
 
+        // 先让隔了一夜的学习卡毕业，它们今天以复习卡身份出现（否则补走分钟步
+        // 会把到期时间推到明天，表现为「学完第二天没有复习」）
+        studyRepository.graduateStaleCards(now)
+
         val newLearnedToday = studyRepository.countNewLearnedToday(bookIds)
 
         val newBudget = newLimitOverride ?: maxOf(0, config.dailyNewLimit - newLearnedToday)

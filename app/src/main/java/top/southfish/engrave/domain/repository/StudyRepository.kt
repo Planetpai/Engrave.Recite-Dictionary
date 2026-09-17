@@ -48,6 +48,13 @@ interface StudyRepository {
     /** 同上，但按词头（错题本里的词可能不在任何词书里）。 */
     suspend fun rescheduleToTomorrowByTerm(term: String)
 
+    /**
+     * 把跨日逾期（dueAt 早于当前学习日 4 点起点）的学习/重记卡自动毕业。
+     * 学习会话开始时调用一次，保证隔了一夜的分钟级卡片今天直接出现在复习队列。
+     * @return 被毕业的卡片数
+     */
+    suspend fun graduateStaleCards(now: Long): Int
+
     /** 落库：更新调度状态 + 追加一条复习日志。必须在同一事务里。 */
     suspend fun persistReview(
         item: StudyItem,

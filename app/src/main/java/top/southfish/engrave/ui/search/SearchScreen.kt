@@ -205,7 +205,14 @@ private fun HistoryList(
     onClear: () -> Unit,
     listState: androidx.wear.compose.foundation.lazy.ScalingLazyListState
 ) {
-    ScalingLazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
+    ScalingLazyColumn(
+        state = listState,
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(
+            top = top.southfish.engrave.ui.components.timeTextPadding(),
+            bottom = 16.dp
+        )
+    ) {
         item {
             ListHeader { Text("搜索历史") }
         }
@@ -270,7 +277,14 @@ private fun ResultList(
     onOpen: (top.southfish.engrave.domain.model.DictEntry) -> Unit,
     listState: androidx.wear.compose.foundation.lazy.ScalingLazyListState
 ) {
-    ScalingLazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
+    ScalingLazyColumn(
+        state = listState,
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(
+            top = top.southfish.engrave.ui.components.timeTextPadding(),
+            bottom = 16.dp
+        )
+    ) {
         if (results.isEmpty()) {
             item {
                 Text(

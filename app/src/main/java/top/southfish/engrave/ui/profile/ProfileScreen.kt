@@ -125,7 +125,10 @@ fun ProfileContent(
         modifier = modifier.fillMaxSize(),
         state = listState,
         horizontalAlignment = Alignment.CenterHorizontally,
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(top = 16.dp, bottom = 32.dp)
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(
+            top = top.southfish.engrave.ui.components.timeTextPadding(16.dp),
+            bottom = 32.dp
+        )
     ) {
         item { ListHeader { Text("我的") } }
 
