@@ -9,6 +9,7 @@ import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.runtime.MutableState
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.input.pointer.AwaitPointerEventScope
 import androidx.compose.ui.input.pointer.PointerInputChange
 import androidx.compose.ui.input.pointer.PointerInputScope
@@ -33,28 +34,25 @@ internal class CardSwipeThresholds(
 private enum class TapOutcome { TAP, LONG_PRESS, DRAGGED_AWAY, CANCELLED }
 
 /**
- * 点击翻面 + 三击撤销 + 长按加错题。
+ * 卡片上的点击翻面 + 长按加错题。
  *
- * 几种点击和拖拽放在同一个检测器里、自定仲裁：
- * - 不用 detectTapGestures：它设了 onDoubleTap 之后，单击要等双击超时才回调，
- *   手表上翻面会明显拖一下。这里第一下抬手就立刻翻面，再等连点窗口，
- *   三击成立才撤销——翻面紧跟着被撤销覆盖，观感正是「卡片飞回来」。
- * - 第二击不干等：立刻当普通点击翻面，窗口内第三击再来才补撤销。
- *   这样「点两下翻回去」不受惩罚，误触两下也不会撤销。
+ * 撤销不在卡片上（见 [detectOutsideDoubleTap]）：卡片上只认单击和长按，
+ * 连点只负责翻面，怎么点都不会误触撤销。
+ *
+ * 点击和拖拽放在同一个检测器里、自定仲裁：
+ * - 不用 detectTapGestures：单击抬手立刻回调，翻面没有任何等待感。
  * - 不能和独立的 detectTapGestures / detectDragGestures 并存再靠事件消费
  *   仲裁：同一节点上多个检测器各跑各的，框架自己的点击/拖拽检测会消费
  *   down/up 事件，外层检测器用 waitForUpOrCancellation 会把普通点击也误判成
  *   「被抢走」。这里自己按 touchSlop 判定是否拖走、按时长判定长按，
  *   只读取事件的原始位置和状态，完全不看消费标记。
  *
- * 返回 null 表示这一下是拖拽（卡片在跟着手走），点击逻辑不做任何响应。
+ * 拖走或长按时点击逻辑不做任何响应。
  */
-internal suspend fun PointerInputScope.detectFlipAndUndo(
+internal suspend fun PointerInputScope.detectTapAndLongPress(
     onTap: () -> Unit,
-    onTripleTap: () -> Unit,
     onLongPress: (() -> Unit)? = null
 ) {
-    val doubleTapTimeout = viewConfiguration.doubleTapTimeoutMillis
     val longPressTimeout = viewConfiguration.longPressTimeoutMillis
     val slop = viewConfiguration.touchSlop
 
@@ -62,7 +60,7 @@ internal suspend fun PointerInputScope.detectFlipAndUndo(
     // 长按只在有人监听时才计时。超时窗口按事件时间戳推进，不依赖墙钟。
     suspend fun AwaitPointerEventScope.awaitPressEnd(
         down: PointerInputChange
-    ): Pair<TapOutcome, Long?> {
+    ): TapOutcome {
         val downTime = down.uptimeMillis
         val start = down.position
         var waitMs: Long = if (onLongPress != null) longPressTimeout else Long.MAX_VALUE
@@ -79,12 +77,12 @@ internal suspend fun PointerInputScope.detectFlipAndUndo(
             }
 
             val change = event.changes.firstOrNull { it.id == down.id }
-                ?: return TapOutcome.CANCELLED to null
+                ?: return TapOutcome.CANCELLED
 
             // 位移超过 touch slop：这是拖动手势，交给拖拽检测，点击退出
             val moved = change.position - start
             if (abs(moved.x) > slop || abs(moved.y) > slop) {
-                return TapOutcome.DRAGGED_AWAY to null
+                return TapOutcome.DRAGGED_AWAY
             }
 
             if (!change.pressed) {
@@ -92,8 +90,8 @@ internal suspend fun PointerInputScope.detectFlipAndUndo(
                 val held = change.uptimeMillis - downTime
                 return when {
                     longPressFired || (onLongPress != null && held >= longPressTimeout) ->
-                        TapOutcome.LONG_PRESS to held
-                    else -> TapOutcome.TAP to held
+                        TapOutcome.LONG_PRESS
+                    else -> TapOutcome.TAP
                 }
             }
 
@@ -108,27 +106,56 @@ internal suspend fun PointerInputScope.detectFlipAndUndo(
 
     awaitEachGesture {
         val down = awaitFirstDown(requireUnconsumed = false)
+        val outcome = awaitPressEnd(down)
+        if (outcome == TapOutcome.TAP) onTap()
+    }
+}
 
-        val (outcome, _) = awaitPressEnd(down)
-        if (outcome != TapOutcome.TAP) return@awaitEachGesture
+/**
+ * 卡片框外区域的双击撤销。
+ *
+ * 为什么撤销放在卡片外：卡片本身要承载单击翻面、左滑/上滑评分、长按加错题，
+ * 以前的三击撤销和翻面点按共用一块区域，翻得快一点就会误触。现在双击的
+ * 落点必须在卡片矩形之外（周围留白环）才成立，卡片上怎么连点都只翻面。
+ *
+ * 自己识别而不是直接挂 detectTapGestures：每次 down 都先用 [excludedRect]
+ * 过滤，落在卡片上的手势整段放弃，不会与卡片自己的检测器互相干扰；
+ * 第二击超时、拖走或取消都不触发。
+ */
+internal suspend fun PointerInputScope.detectOutsideDoubleTap(
+    excludedRect: () -> Rect?,
+    onDoubleTap: () -> Unit
+) {
+    val doubleTapTimeout = viewConfiguration.doubleTapTimeoutMillis
 
-        // 第一下抬手立即翻面
-        onTap()
+    awaitEachGesture {
+        val firstDown = awaitFirstDown(requireUnconsumed = false)
+        val rect = excludedRect()
+        if (rect != null && firstDown.position in rect) return@awaitEachGesture
+        if (!waitForTapUp(firstDown)) return@awaitEachGesture
 
-        // 连点链：第二击同样立刻翻面（保持响应速度），第三击在窗口内
-        // 到达才算撤销。任何一击被拖走 / 长按 / 取消，链就断——防误触。
-        var taps = 1
-        while (taps < 3) {
-            val chained = withTimeoutOrNull(doubleTapTimeout) {
-                val nextDown = awaitFirstDown(requireUnconsumed = false)
-                val (nextOutcome, _) = awaitPressEnd(nextDown)
-                nextOutcome == TapOutcome.TAP
-            } ?: false
-            if (!chained) return@awaitEachGesture
-            taps++
-            if (taps < 3) onTap()
-        }
-        onTripleTap()
+        val secondDown = withTimeoutOrNull(doubleTapTimeout) {
+            awaitFirstDown(requireUnconsumed = false)
+        } ?: return@awaitEachGesture
+        if (rect != null && secondDown.position in rect) return@awaitEachGesture
+        if (!waitForTapUp(secondDown)) return@awaitEachGesture
+
+        onDoubleTap()
+    }
+}
+
+/** 等到这根手指原地抬手；发生拖动或手势取消都返回 false。 */
+private suspend fun AwaitPointerEventScope.waitForTapUp(
+    down: PointerInputChange
+): Boolean {
+    val slop = viewConfiguration.touchSlop
+    val start = down.position
+    while (true) {
+        val event = awaitPointerEvent()
+        val change = event.changes.firstOrNull { it.id == down.id } ?: return false
+        val moved = change.position - start
+        if (abs(moved.x) > slop || abs(moved.y) > slop) return false
+        if (!change.pressed) return true
     }
 }
 

@@ -13,7 +13,7 @@
 | ------------------------------- | -------------------------------------- |
 | 应用名                             | 刻词（Engrave）                            |
 | 包名                              | `top.southfish.engrave`                |
-| 版本                              | 目前最新版本`0.1BETA`（versionCode 1）         |
+| 版本                              | 目前最新版本`0.21Beta`（versionCode 3）         |
 | minSdk / targetSdk / compileSdk | 28 / **29** / 34（targetSdk 故意压在 29，见下） |
 
 > **为什么 targetSdk 是 29**：One UI Watch 的「设置 → 安全与隐私 → 许可管理器 → 文件」只对 targetSdk≤29 的传统存储应用开放存储权限授予（运行时弹窗同理）；targetSdk 30+ 在手表上没有任何用户可授予的文件权限（无「所有文件访问」页、SAF 是空壳）。targetSdk 29 + `requestLegacyExternalStorage` + 授予 `READ_EXTERNAL_STORAGE` 即可用 `java.io.File` 直接读 Download（2026-09-09 真机验证通过）。**不要升 targetSdk**，除非找到替代的文件访问方案。
@@ -143,9 +143,9 @@ app/src/main/java/top/southfish/engrave/
 
 | 模块       | 位置                                 | 说明                         |
 | -------- | ---------------------------------- | -------------------------- |
-| SRS 间隔复习 | `domain/srs/Sm2Scheduler.kt`       | SM-2 变体；忘词当日 10 分钟重学       |
+| SRS 间隔复习 | `domain/srs/Sm2Scheduler.kt`       | SM-2 变体；新词与重记词单步 1 小时学习步 |
 | 学习状态机    | `ui/study/`                        | 浏览选词 → 背新词（英→中→拼写）→ 复习     |
-| 卡片手势     | `ui/study/CardGestures.kt`         | 单检测器仲裁：翻面/三击撤销/长按错题/滑动评分   |
+| 卡片手势     | `ui/study/CardGestures.kt`         | 卡内单击翻面/长按错题/滑动评分，卡片外双击撤销 |
 | 数字转轮     | `ui/components/NumberWheel.kt`     | 视口中心选中 + 文本宽度触发区           |
 | 提醒调度     | `reminder/`                        | 精确闹钟 + 四层重排兜底              |
 | 导航/启动    | `ui/navigation/VocabNavHost.kt`    | 冷启动回主页、热启动恢复页面、导航栈持久化      |
@@ -180,7 +180,7 @@ app/src/main/java/top/southfish/engrave/
 
 ## 7. 测试
 
-- 单元测试：`.\gradlew.bat :app:testDebugUnitTest`（DayIndex / Sm2Scheduler / 学习队列 / 学习流程 / 拼写切分，50+ 用例）。
+- 单元测试：`.\gradlew.bat :app:testDebugUnitTest`（DayIndex / Sm2Scheduler / 学习队列 / 学习流程 / 拼写切分，共 72 个用例）。
 
 ---
 

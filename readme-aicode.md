@@ -11,7 +11,7 @@
 | ------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
 | 应用名                             | **刻词**（英文 Engrave）                                                                                                |
 | 包名 applicationId / namespace    | `top.southfish.engrave`（2026-09-09 由 `com.example.vocabwatch` 迁移，**不可再改**）                                        |
-| 版本                              | versionName `0.1BETA` / versionCode 1（改版本号在 `app/build.gradle` 的 `defaultConfig`）                                 |
+| 版本                              | versionName `0.21Beta` / versionCode 3（改版本号在 `app/build.gradle` 的 `defaultConfig`）                                 |
 | 定位                              | 独立运行于 Wear OS 手表的背单词应用（无手机伴侣端）                                                                                    |
 | 技术栈                             | Kotlin + Jetpack Compose for Wear OS 1.2.1 + Room 2.6.1 + DataStore                                               |
 | minSdk / targetSdk / compileSdk | 28 / **29** / 34（targetSdk 29 是刻意的：One UI Watch 只给 targetSdk≤29 传统存储应用暴露可授予的存储权限；30+ 在手表上无任何用户可授予的文件权限。**不可升**）   |
@@ -28,7 +28,7 @@
 以下行为均为用户明确拍板（标日期者为定稿日），改动前必须确认用户同意：
 
 1. **头像/昵称只响应长按**：点头像、点昵称一律无反应。头像长按进 `AvatarPickerScreen`；昵称长按进原生 `EditText` 内联编辑（2026-09-08 移除了点按轮换 emoji）。
-2. **卡片手势单检测器原则**：点击翻面 / 三击撤销 / 长按加错题 / 滑动评分必须在同一个 `pointerInput` 检测器内仲裁（`CardGestures.detectFlipAndUndo()`），禁止与 `detectTapGestures`/`detectDragGestures` 并存。
+2. **卡片手势分两层**（2026-09-18 定稿）：卡片自身在同一个 `pointerInput` 检测器内仲裁单击翻面 / 长按加错题 / 滑动评分（`CardGestures.detectTapAndLongPress()` + `detectCardSwipe()`），禁止与 `detectTapGestures`/`detectDragGestures` 并存；**撤销手势是卡片外独立层**——`detectOutsideDoubleTap(cardRect)` 监听卡片矩形外区域的双击，两击 down 都必须落在卡片外，拖拽/取消断链。卡片内永远不触发撤销（原三击误触率高，已移除）。
 3. **搜索无结果**必须显示「没有相关单词」。
 4. **冷启动/热启动**（2026-09-09 定稿）：进程被杀后冷启动 → 一律回主页；热启动（进程未死）→ 恢复上次退出页面。判断用 `VocabApplication.isColdStart` 进程级标志。
 5. **NumberWheel**：触发区宽度 = 数字显示文本实测宽度 + 4dp 边距（`rememberTextMeasurer`），不得恢复固定宽度参数；选中值用视口中心检测，禁止 `firstVisibleItemIndex`。
@@ -36,10 +36,11 @@
 7. **FilePicker**：`BOOK`/`BACKUP` 双模式；「从设备导入词书」「从设备导入备份」按钮**永久常驻**（导入成功后不得隐藏）；BACKUP 模式校验备份键、词书 JSON 要提示「这不是数据备份文件」。
 8. **内置词书**：固定 2 本 ECDICT 词书（初中 1987 / 高中 3743），**单词顺序随机打乱**（固定 seed）；换书内容必须换文件名（importBook 按 sourceKey 幂等去重）。
 9. **词书多选**：`activeBookIds: Set<Long>`，空集合 = 全部词书；DAO 用 `:allBooks = 1 OR w.bookId IN (:bookIds)`，空集合传 `listOf(-1L)`。
-10. **复习算法（SM-2 变体）**：复习阶段 AGAIN → 10 分钟当日重学（不跳过、不隔天），重复忘记词越记越频、永不丢失；ease 下限 1.3。
-11. **学习日切分凌晨 4 点**（`DayIndex`）；跨天未完成会话快照自动作废。
-12. **选词页**：队列空且未达目标继续续拉新词（`browseSeen` 排除已见）；头部只显示「已选 x/target」，不得出现「待看」「需背 0 个」。
-13. **选图链**（2026-09-09 定稿）：**厂商图库 ACTION_PICK 优先 → 应用内三星图库风格两列网格兜底**。**不使用 Google 照片选择器（PickVisualMedia）**——用户明确要求移除。应用内网格参照三星 One UI Watch 全屏两列方格样式。
+10. **复习算法（SM-2 变体）**：学习/重记均为**单步 60 分钟**（`learningStepsMinutes=relearningStepsMinutes=[60.0]`，2026-09-18 移除 10 分钟步）；复习阶段 AGAIN → 当日 1 小时重学（不跳过、不隔天），重复忘记词越记越频、永不丢失；ease 下限 1.3。
+11. **每个词每会话只落一次 SRS 评分**（2026-09-18 定稿）：一个词的三遍考法（英→中→拼写）只有全部通过、词离队时才调一次 `submitReview()`；中途的「不会」和非末遍的「会」一律不写库（否则几分钟内连走多个学习步，1 小时复习永不出现）。FORMAL 阶段整会话统一 GOOD（卡壳不扣 ease）；REVIEW 阶段按本会话该词「不会」次数决定 AGAIN/GOOD（计数在 `StudyViewModel.failureCounts`，并随会话快照持久化）。
+12. **学习日切分凌晨 4 点**（`DayIndex`）；跨天未完成会话快照自动作废。
+13. **选词页**：队列空且未达目标继续续拉新词（`browseSeen` 排除已见）；头部只显示「已选 x/target」，不得出现「待看」「需背 0 个」。
+14. **选图链**（2026-09-09 定稿）：**厂商图库 ACTION_PICK 优先 → 应用内三星图库风格两列网格兜底**。**不使用 Google 照片选择器（PickVisualMedia）**——用户明确要求移除。应用内网格参照三星 One UI Watch 全屏两列方格样式。
 
 ---
 
@@ -143,14 +144,14 @@ app/src/main/java/top/southfish/engrave/
 
 ### 6.1 SRS 间隔复习（`domain/srs/Sm2Scheduler.kt`）
 
-SM-2 变体：`Grade`（AGAIN/HARD/GOOD/EASY）→ 下次间隔与熟练度。调度器纯 Kotlin，`TimeProvider` 抽象时间可注入固定时钟。**复习阶段 AGAIN 语义**：当日 10 分钟重学（relearningStepsMinutes=[10.0]），ease -0.20（下限 1.3），毕业后毕业间隔恒 1 天——重复忘记的词出现更频繁而非被跳过。
+SM-2 变体：`Grade`（AGAIN/HARD/GOOD/EASY）→ 下次间隔与熟练度。调度器纯 Kotlin，`TimeProvider` 抽象时间可注入固定时钟。**学习/重记步**：均为单步 `[60 分钟]`（新词 GOOD → 1 小时后到期；学习步上再 GOOD 才毕业锚定次日凌晨 4 点）。**复习阶段 AGAIN 语义**：进重记步、当日 1 小时后到期（不跳过、不隔天），ease -0.20（下限 1.3），重记毕业后毕业间隔恒 1 天——重复忘记的词出现更频繁而非被跳过。会话写库节奏见 §1.11。
 
 ### 6.2 学习流程状态机（`ui/study`）
 
 三阶段：**浏览选词**（上滑选入/左滑已学过）→ **正式背新词**（每词三遍：英→中→拼写）→ **复习**。
 
 - 续批不重复：`getNewItems` 用 `browseSeen` 排除本会话已见词。
-- 三击撤销（`CardGestures.detectFlipAndUndo()`）：第一/二击立即翻面，第三击在 ~300ms（`doubleTapTimeoutMillis`）窗口内触发撤销；拖拽/长按/超时断链。
+- 卡片外双击撤销（`CardGestures.detectOutsideDoubleTap(excludedRect)`）：`StudyCardDeck` 在卡片之下铺一层全屏 `pointerInput`，按卡片宽高比（0.88/0.78）居中算出卡片矩形，两次 down 都在矩形外、且都在 `doubleTapTimeoutMillis` 窗口内抬起（无拖拽/取消）才触发；卡片内点击归卡面检测器（单击翻面），两套手势互不干扰。
 - 纵轴滑动只动顶卡（>52dp 飞出，否则弹簧回零）；下层叠卡 `DeckBehind` **固定不动**。
 - 测试阶段必须先 tap 翻面才能滑动评分（防误滑，有意设计）。
 - 自动化手势：快滑 ~300ms；慢拖 >~400ms 会被长按加错题劫持。
@@ -249,7 +250,7 @@ SM-2 变体：`Grade`（AGAIN/HARD/GOOD/EASY）→ 下次间隔与熟练度。�
 | `DayIndexTest`               | 学习日切分边界                      |
 | `Sm2SchedulerTest`           | SRS 各评分档间隔/熟练度演进             |
 | `GetStudySessionUseCaseTest` | 队列组装、续批排除已见、activeBookIds 透传 |
-| `StudyFlowTest`              | 状态机、答错重排、三击撤销、词书见底分支         |
+| `StudyFlowTest`              | 状态机、答错重排、每词每会话单次落库、双击撤销、词书见底分支 |
 | `SpellingChunksTest`         | 拼写字母切分                       |
 
 结果 XML：`app/build/test-results/testDebugUnitTest/`。
@@ -259,9 +260,9 @@ SM-2 变体：`Grade`（AGAIN/HARD/GOOD/EASY）→ 下次间隔与熟练度。�
 1. 冷启动：进深层页 → `am force-stop` → 重开 → **应回主页**（2026-09-09 新行为）。
 2. 热启动：进深层页 → HOME 键/表盘 → 重开 → 应回到该页。
 3. 提醒 08:55 → 强杀重启 → 时间不回 08:00。
-4. 学习页三连击撤销；顶卡滑动飞出、叠卡不动。
+4. 学习页**卡片外空白处双击**撤销（卡片内双击只翻面、绝不撤销）；顶卡滑动飞出、叠卡不动。
 5. 长按头像 → 厂商图库（三星表应出全屏两列图库）→ 取消 → 应用内两列网格 → 选图头像刷新。
-6. 我的页滚到底：关于区（图标/版本 0.1BETA/SouthFish/三平台/开源声明）完整可见。
+6. 我的页滚到底：关于区（图标/版本 0.21Beta/SouthFish/三平台/开源声明）完整可见。
 7. 搜索「apple」→ 详情页滑到底末行不裁切。
 8. 词书管理多选 → 首页计数变化；数据管理导入词书 JSON 提示「这不是数据备份文件」。
 9. 通知权限：已授权开提醒不弹请求不跳设置。
@@ -284,8 +285,10 @@ SM-2 变体：`Grade`（AGAIN/HARD/GOOD/EASY）→ 下次间隔与熟练度。�
 | ------------------------------------ | ------------------------------------------------------- |
 | 重启后提醒时间变回 08:00                      | 设置页轮子在 DataStore 加载前以默认值组合并被回写（§6.5 加载门禁）               |
 | 转轮选不中 55 分/23 时                      | 用了 firstVisibleItemIndex；改视口中心检测（§6.4）                  |
-| 卡片单击翻面延迟                             | detectTapGestures 双击等待；用 detectFlipAndUndo              |
-| 三击撤销误触/不触发                           | 同一检测器同一 ~300ms 窗口；拖拽/长按断链                               |
+| 卡片单击翻面延迟                             | detectTapGestures 双击等待；用 detectTapAndLongPress            |
+| 学完新词 1 小时后复习不出现                    | 每遍滑动都 submitReview，几分钟内连走学习步并毕业；改为每会话离队只落一次（§1.11） |
+| 撤销手势误触                                | 原卡面三击易误触；改为卡片外区域双击（detectOutsideDoubleTap，§1.2）      |
+| 撤销后再轮到该卡直接摊着背面                 | 撤销的是上一张，当前卡的 flipped=true 仍留在队列/快照；undo 时复位当前卡，restore 时只允许队首保留 flipped |
 | 头像选图页点按钮没反应                          | frameworkpackagestubs 空壳被 resolve；按包名过滤（§6.7）           |
 | `BitmapFactory.decodeStream` 返回 null | inJustDecodeBounds=true 属正常，用独立流解码                      |
 | 后台收不到提醒                              | 精确闹钟权限 + 电池白名单；dumpsys alarm 查（§6.3）                    |

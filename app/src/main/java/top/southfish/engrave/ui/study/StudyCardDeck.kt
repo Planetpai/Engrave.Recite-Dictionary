@@ -14,6 +14,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
@@ -29,6 +30,9 @@ import androidx.compose.ui.unit.dp
  *
  * 两个滑动回调传 null 就代表当前不接受该方向手势——卡片还没翻面时不能
  * 评分，拼写卡靠点字母作答。「已学过 / 会」是左滑，避开系统返回手势。
+ *
+ * 撤销手势（[onUndo]）放在卡片矩形外的留白环上：在卡片外面双击才撤回
+ * 上一张卡，卡片自身的点按/滑动区域不响应撤销，避免翻面时误触。
  */
 @Composable
 fun StudyCardDeck(
@@ -36,7 +40,7 @@ fun StudyCardDeck(
     behindFaces: List<@Composable () -> Unit>,
     flipped: Boolean,
     onTap: () -> Unit,
-    onTripleTap: () -> Unit,
+    onUndo: (() -> Unit)? = null,
     onLongPress: (() -> Unit)? = null,
     onSwipeLeft: (() -> Unit)?,
     onSwipeUp: (() -> Unit)?,
@@ -71,6 +75,30 @@ fun StudyCardDeck(
         val cardWidth = maxWidth * 0.88f
         val cardHeight = maxHeight * 0.78f
 
+        // 卡片外的留白环：双击这里撤销。矩形按卡片在容器中的居中位置算，
+        // 和下面卡片实际尺寸保持一致；落在卡片上的双击由检测器自己丢掉。
+        if (onUndo != null) {
+            Box(
+                Modifier
+                    .matchParentSize()
+                    .pointerInput(maxWidth, maxHeight) {
+                        detectOutsideDoubleTap(
+                            excludedRect = {
+                                val cw = cardWidth.toPx()
+                                val ch = cardHeight.toPx()
+                                Rect(
+                                    left = (size.width - cw) / 2f,
+                                    top = (size.height - ch) / 2f,
+                                    right = (size.width + cw) / 2f,
+                                    bottom = (size.height + ch) / 2f
+                                )
+                            },
+                            onDoubleTap = onUndo
+                        )
+                    }
+            )
+        }
+
         // 撤销：卡片从当初飞出去的方向原路飞回来
         LaunchedEffect(cardKey) {
             when (undoReplay) {
@@ -103,7 +131,7 @@ fun StudyCardDeck(
                     translationY = offsetY.value
                     rotationZ = offsetX.value / 40f
                 }
-                .pointerInput(cardKey, onLongPress) { detectFlipAndUndo(onTap, onTripleTap, onLongPress) }
+                .pointerInput(cardKey, onLongPress) { detectTapAndLongPress(onTap, onLongPress) }
                 .pointerInput(cardKey, allowLeft, allowUp) {
                     detectCardSwipe(
                         scope = scope,

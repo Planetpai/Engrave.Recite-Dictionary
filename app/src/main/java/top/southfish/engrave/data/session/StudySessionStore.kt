@@ -32,6 +32,8 @@ class StudySessionStore(dir: File) {
         val newWords: List<Long>,
         val reviewWords: List<Long>,
         val againCount: Int,
+        /** 复习阶段每个词本会话答「不会」的次数：wordId → 次数。 */
+        val failureCounts: Map<Long, Int> = emptyMap(),
         /** BREAK_* 阶段的提示文案。 */
         val breakTitle: String? = null,
         val breakSubtitle: String? = null
@@ -78,6 +80,9 @@ class StudySessionStore(dir: File) {
             newWords = root.optJSONArray("newWords")?.longs().orEmpty(),
             reviewWords = root.optJSONArray("reviewWords")?.longs().orEmpty(),
             againCount = root.optInt("againCount", 0),
+            failureCounts = root.optJSONObject("failureCounts")?.let { obj ->
+                obj.keys().asSequence().associate { it.toLong() to obj.getInt(it) }
+            }.orEmpty(),
             breakTitle = root.optString("breakTitle").ifBlank { null },
             breakSubtitle = root.optString("breakSubtitle").ifBlank { null }
         )
@@ -105,6 +110,9 @@ class StudySessionStore(dir: File) {
                 put("newWords", JSONArray(snapshot.newWords))
                 put("reviewWords", JSONArray(snapshot.reviewWords))
                 put("againCount", snapshot.againCount)
+                put("failureCounts", JSONObject().apply {
+                    snapshot.failureCounts.forEach { (wordId, count) -> put(wordId.toString(), count) }
+                })
                 snapshot.breakTitle?.let { put("breakTitle", it) }
                 snapshot.breakSubtitle?.let { put("breakSubtitle", it) }
             }

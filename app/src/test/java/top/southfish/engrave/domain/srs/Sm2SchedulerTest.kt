@@ -53,72 +53,68 @@ class Sm2SchedulerTest {
     // ------------------------------------------------------------- 新词
 
     @Test
-    fun `新词答记得 - 进入学习阶段第一步 10 分钟后`() {
+    fun `新词答记得 - 进入学习阶段 1 小时后且不毕业`() {
         val outcome = scheduler.schedule(newState(), Grade.GOOD, now)
 
         assertEquals(LearningStage.LEARNING, outcome.newState.stage)
         assertEquals(0, outcome.newState.stepIndex)
-        assertEquals(now + 10 * minute, outcome.newState.dueAt)
-        assertEquals(10.0 / 1440, outcome.scheduledInDays, 1e-9)
+        assertEquals(now + 60 * minute, outcome.newState.dueAt)
+        assertEquals(60.0 / 1440, outcome.scheduledInDays, 1e-9)
         // ease 2.5 + goodBonus 0.05
         assertEquals(2.55, outcome.newState.easeFactor, 1e-9)
         assertTrue(!outcome.graduated)
     }
 
     @Test
-    fun `学习第一步答记得 - 进入第二步 1 小时后`() {
+    fun `学习步答记得 - 1小时到期复习通过后毕业到1天`() {
         val learning = ReviewState(
             wordId = 1L,
             stage = LearningStage.LEARNING,
             stepIndex = 0,
-            intervalDays = 10.0 / 1440,
+            intervalDays = 60.0 / 1440,
             dueAt = now
         )
 
-        val outcome = scheduler.schedule(learning, Grade.GOOD, now)
+        val outcome = scheduler.schedule(learning, Grade.GOOD, now + 60 * minute)
 
-        assertEquals(LearningStage.LEARNING, outcome.newState.stage)
-        assertEquals(1, outcome.newState.stepIndex)
-        assertEquals(now + 60 * minute, outcome.newState.dueAt)
-        assertTrue(!outcome.graduated)
+        assertEquals(LearningStage.REVIEW, outcome.newState.stage)
+        assertEquals(1.0, outcome.newState.intervalDays, 1e-9)
+        assertTrue(outcome.graduated)
     }
 
     @Test
-    fun `完整正常路径 - 新词经过10分钟和1小时才毕业`() {
-        // 新词 → 10 分钟 → 1 小时 → 毕业 1 天
+    fun `完整正常路径 - 新词1小时后复习才毕业`() {
+        // 新词 → 1 小时（学习步）→ 毕业 1 天
         var state = newState()
 
         state = scheduler.schedule(state, Grade.GOOD, now).newState
-        assertEquals(10 * minute, state.dueAt - now)
+        assertEquals(60 * minute, state.dueAt - now)
         assertEquals(LearningStage.LEARNING, state.stage)
 
-        state = scheduler.schedule(state, Grade.GOOD, now + 10 * minute).newState
-        assertEquals(60 * minute, state.dueAt - (now + 10 * minute))
-
-        val grad = scheduler.schedule(state, Grade.GOOD, now + 70 * minute)
+        val grad = scheduler.schedule(state, Grade.GOOD, now + 60 * minute)
         assertEquals(LearningStage.REVIEW, grad.newState.stage)
         assertEquals(1.0, grad.newState.intervalDays, 1e-9)
         assertTrue(grad.graduated)
     }
 
     @Test
-    fun `新词答忘了 - 停在学习第一步 10 分钟后`() {
+    fun `新词答忘了 - 停在学习步 1 小时后`() {
         val outcome = scheduler.schedule(newState(), Grade.AGAIN, now)
 
         assertEquals(LearningStage.LEARNING, outcome.newState.stage)
         assertEquals(0, outcome.newState.stepIndex)
-        assertEquals(now + 10 * minute, outcome.newState.dueAt)
+        assertEquals(now + 60 * minute, outcome.newState.dueAt)
         // ease 2.5 - 0.20
         assertEquals(2.3, outcome.newState.easeFactor, 1e-9)
     }
 
     @Test
-    fun `新词答模糊 - 停在当前步 间隔乘1_5`() {
+    fun `新词答模糊 - 停在学习步 间隔乘1_5`() {
         val outcome = scheduler.schedule(newState(), Grade.HARD, now)
 
-        // steps = [10, 60]，index 0 不是最后一步 → 停留，10 × 1.5 = 15 分钟
+        // steps = [60]，唯一一步对 NEW 来说还不算最后一步 → 停留，60 × 1.5 = 90 分钟
         assertEquals(0, outcome.newState.stepIndex)
-        assertEquals(now + 15 * minute, outcome.newState.dueAt)
+        assertEquals(now + 90 * minute, outcome.newState.dueAt)
     }
 
     @Test
@@ -141,7 +137,7 @@ class Sm2SchedulerTest {
         val learning = ReviewState(
             wordId = 1L,
             stage = LearningStage.LEARNING,
-            stepIndex = 1,
+            stepIndex = 0,
             intervalDays = 60.0 / 1440,
             dueAt = now
         )
@@ -160,7 +156,7 @@ class Sm2SchedulerTest {
         val learning = ReviewState(
             wordId = 1L,
             stage = LearningStage.LEARNING,
-            stepIndex = 1,
+            stepIndex = 0,
             dueAt = now
         )
 
@@ -173,11 +169,11 @@ class Sm2SchedulerTest {
     }
 
     @Test
-    fun `学习阶段答忘了 - 退回第一步而不是毕业`() {
+    fun `学习阶段答忘了 - 退回学习步而不是毕业`() {
         val learning = ReviewState(
             wordId = 1L,
             stage = LearningStage.LEARNING,
-            stepIndex = 1,
+            stepIndex = 0,
             dueAt = now
         )
 
@@ -185,7 +181,7 @@ class Sm2SchedulerTest {
 
         assertEquals(LearningStage.LEARNING, outcome.newState.stage)
         assertEquals(0, outcome.newState.stepIndex)
-        assertEquals(now + 10 * minute, outcome.newState.dueAt)
+        assertEquals(now + 60 * minute, outcome.newState.dueAt)
     }
 
     // ------------------------------------------------------------- 复习阶段 - 阶梯
@@ -233,7 +229,7 @@ class Sm2SchedulerTest {
         assertEquals(2, outcome.newState.lapses)
         assertEquals(0, outcome.newState.repetitions)
         assertEquals(2.3, outcome.newState.easeFactor, 1e-9)
-        assertEquals(now + 10 * minute, outcome.newState.dueAt)
+        assertEquals(now + 60 * minute, outcome.newState.dueAt)
     }
 
     @Test
@@ -355,17 +351,15 @@ class Sm2SchedulerTest {
 
     @Test
     fun `同一天不同时间学的卡 - 统一次日4AM到期`() {
-        // 早上 8 点学：新词 → 10 分钟 → 1 小时 → 毕业
+        // 早上 8 点学：新词 → 1 小时学习步 → 毕业
         val morningNow = now + 10 * 3600_000L
         var morning = scheduler.schedule(newState(), Grade.GOOD, morningNow).newState
-        morning = scheduler.schedule(morning, Grade.GOOD, morningNow + 10 * minute).newState
-        val morningGrad = scheduler.schedule(morning, Grade.GOOD, morningNow + 70 * minute)
+        val morningGrad = scheduler.schedule(morning, Grade.GOOD, morningNow + 60 * minute)
 
         // 晚上 22 点学（同一天）
         val eveningNow = morningNow + 14 * 3600_000L
         var evening = scheduler.schedule(newState(), Grade.GOOD, eveningNow).newState
-        evening = scheduler.schedule(evening, Grade.GOOD, eveningNow + 10 * minute).newState
-        val eveningGrad = scheduler.schedule(evening, Grade.GOOD, eveningNow + 70 * minute)
+        val eveningGrad = scheduler.schedule(evening, Grade.GOOD, eveningNow + 60 * minute)
 
         // 两者都锚定到 2023-11-16T04:00:00Z
         assertEquals(morningGrad.newState.dueAt, eveningGrad.newState.dueAt)
@@ -398,19 +392,18 @@ class Sm2SchedulerTest {
     // ------------------------------------------------------------- fuzz
 
     @Test
-    fun `10分钟和1小时间隔不加fuzz`() {
-        // 新词 GOOD → 10 分钟，多次调用 dueAt 完全相同
+    fun `1小时学习间隔不加fuzz`() {
+        // 新词 GOOD → 1 小时，多次调用 dueAt 完全相同
         val o1 = scheduler.schedule(newState(), Grade.GOOD, now)
         val o2 = scheduler.schedule(newState(), Grade.GOOD, now)
         assertEquals(o1.newState.dueAt, o2.newState.dueAt)
-        assertEquals(now + 10 * minute, o1.newState.dueAt)
+        assertEquals(now + 60 * minute, o1.newState.dueAt)
 
-        // 第一步 GOOD → 1 小时，同样精确无抖动
+        // 学习步 GOOD 毕业，同样精确无抖动
         val step0 = o1.newState
-        val h1 = scheduler.schedule(step0, Grade.GOOD, now + 10 * minute)
-        val h2 = scheduler.schedule(step0, Grade.GOOD, now + 10 * minute)
-        assertEquals(h1.newState.dueAt, h2.newState.dueAt)
-        assertEquals(now + 70 * minute, h1.newState.dueAt)
+        val g1 = scheduler.schedule(step0, Grade.GOOD, now + 60 * minute)
+        val g2 = scheduler.schedule(step0, Grade.GOOD, now + 60 * minute)
+        assertEquals(g1.newState.dueAt, g2.newState.dueAt)
     }
 
     @Test
@@ -474,10 +467,9 @@ class Sm2SchedulerTest {
         var state = newState()
         val intervals = mutableListOf<Double>()
 
-        // 走完学习阶段：GOOD(10分) → GOOD(1小时) → GOOD(毕业1天)
+        // 走完学习阶段：GOOD(1小时学习步) → GOOD(毕业1天)
         state = scheduler.schedule(state, Grade.GOOD, now).newState
-        state = scheduler.schedule(state, Grade.GOOD, now + 10 * minute).newState
-        state = scheduler.schedule(state, Grade.GOOD, now + 70 * minute).newState
+        state = scheduler.schedule(state, Grade.GOOD, now + 60 * minute).newState
         intervals += state.intervalDays
 
         repeat(6) {

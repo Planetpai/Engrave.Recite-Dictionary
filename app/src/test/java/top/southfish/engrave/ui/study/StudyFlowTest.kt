@@ -49,6 +49,9 @@ class StudyFlowTest {
         /** 落库过的评分：wordId 到 grade */
         val persisted = mutableListOf<Pair<Long, Grade>>()
 
+        /** 落库过的完整调度结果：wordId → outcome（按提交顺序） */
+        val outcomes = mutableListOf<Pair<Long, ReviewOutcome>>()
+
         /** 撤销时恢复过状态的 wordId */
         val restored = mutableListOf<Long>()
 
@@ -84,6 +87,7 @@ class StudyFlowTest {
             elapsedMillis: Long
         ) {
             persisted.add(item.wordId to grade)
+            outcomes.add(item.wordId to outcome)
         }
 
         override suspend fun restoreStateAndDropLastLog(wordId: Long, restoredState: ReviewState) {
@@ -185,6 +189,14 @@ class StudyFlowTest {
         flip()
     }
 
+    /** 单卡队列：当前词连续刷三遍「会」直到出队（每遍前先翻面，拼写遍按拼对处理）。 */
+    private fun StudyViewModel.passAllKnown() {
+        repeat(3) {
+            flipNow()
+            answer(Verdict.KNOWN)
+        }
+    }
+
     @Test
     fun `浏览阶段右滑已学过 - 按 EASY 落库且不进待背列表`() {
         val repo = FakeStudyRepository(availableNew = newItems(1L..5L))
@@ -277,7 +289,7 @@ class StudyFlowTest {
     }
 
     @Test
-    fun `答不会的卡 - 归零沉底回英文面`() {
+    fun `答不会的卡 - 归零沉底回英文面 且中途不写库`() {
         val repo = FakeStudyRepository(availableNew = newItems(1L..6L))
         val vm = viewModel(repo, dailyNewLimit = 3)
         repeat(3) { vm.answer(Verdict.UNKNOWN) }
@@ -286,7 +298,7 @@ class StudyFlowTest {
         vm.flipNow()
         vm.answer(Verdict.UNKNOWN)
 
-        assertEquals(listOf(1L to Grade.AGAIN), repo.persisted)
+        assertTrue("会话中途答不会不写库，每个词只在离队时落一次评分", repo.persisted.isEmpty())
         // 沉到最底层：紧接着出现的仍是下一个词，总数不变
         assertEquals(2L, vm.testing().card.item.wordId)
         assertEquals(3, vm.testing().remaining)
@@ -299,7 +311,7 @@ class StudyFlowTest {
         val replay = vm.testing().card
         assertEquals(1L, replay.item.wordId)
         assertEquals("答不会归零，重新从英文面开始", CardKind.EN_TO_ZH, replay.kind)
-        assertEquals("重排的卡要带着刚算出来的新状态", LearningStage.LEARNING, replay.item.state.stage)
+        assertEquals("词还没离队就没落过库，状态仍是 NEW", LearningStage.NEW, replay.item.state.stage)
     }
 
     @Test
@@ -319,10 +331,37 @@ class StudyFlowTest {
         val restored = vm.testing()
         assertEquals(first.uid, restored.card.uid)
         assertEquals("沉底进去的那张要一并摘掉", 2, restored.remaining)
-        assertEquals(listOf(1L), repo.restored)
+        assertTrue("那次答不会压根没落库，撤销不该碰数据库", repo.restored.isEmpty())
         assertEquals("考法跟着它原来的第几刷走", first.kind, restored.card.kind)
         assertFalse("撤销后停在正面，不用再翻一次", restored.card.flipped)
         assertEquals(SwipeDirection.UP, restored.undoReplay)
+    }
+
+    @Test
+    fun `撤销上一张时当前卡已翻面 - 那张卡轮回后必须回到正面`() {
+        val repo = FakeStudyRepository(availableNew = newItems(1L..3L))
+        val vm = viewModel(repo, dailyNewLimit = 2)
+        repeat(2) { vm.answer(Verdict.UNKNOWN) }
+        vm.onBreakAction(StudyUiState.BreakAction.START_FORMAL)
+
+        // 词 1 第一遍答会，沉底成第二遍；词 2 顶到队首
+        vm.flipNow()
+        vm.answer(Verdict.KNOWN)
+        assertEquals(2L, vm.testing().card.item.wordId)
+
+        // 词 2 翻开看了答案，但此时撤销的是词 1 那一下
+        vm.flipNow()
+        assertTrue(vm.testing().card.flipped)
+        vm.undo()
+
+        // 词 1 回队首停正面；把它再答走，词 2 重新顶上来
+        assertEquals(1L, vm.testing().card.item.wordId)
+        vm.flipNow()
+        vm.answer(Verdict.KNOWN)
+
+        val backAgain = vm.testing()
+        assertEquals(2L, backAgain.card.item.wordId)
+        assertFalse("看过答案的卡被撤销流程带回时必须回到正面", backAgain.card.flipped)
     }
 
     @Test
@@ -463,5 +502,90 @@ class StudyFlowTest {
         assertEquals(SwipeDirection.LEFT, vm.browsing().undoReplay)
         assertEquals(1L, vm.browsing().card.item.wordId)
         assertEquals(listOf(1L), repo.restored)
+    }
+
+    // ----------------------------------------------- 每词每会话只落一次评分
+
+    @Test
+    fun `新词三遍走完 - 只落一次 GOOD 且到期1小时后`() {
+        val repo = FakeStudyRepository(availableNew = newItems(1L..1L))
+        val vm = viewModel(repo, dailyNewLimit = 1)
+        vm.answer(Verdict.UNKNOWN)
+        vm.onBreakAction(StudyUiState.BreakAction.START_FORMAL)
+
+        vm.passAllKnown()
+
+        assertTrue(vm.uiState.value is StudyUiState.Finished)
+        assertEquals("三遍考法只在离队落一次库", listOf(1L to Grade.GOOD), repo.persisted)
+        val state = repo.outcomes.single().second.newState
+        assertEquals("新词学完停在学习步，不能直接毕业", LearningStage.LEARNING, state.stage)
+        assertEquals("到期时间精确为提交后 1 小时", clock + 3_600_000L, state.dueAt)
+    }
+
+    @Test
+    fun `新词中途答不会 - 离队仍按 GOOD 不扣 ease`() {
+        val repo = FakeStudyRepository(availableNew = newItems(1L..1L))
+        val vm = viewModel(repo, dailyNewLimit = 1)
+        vm.answer(Verdict.UNKNOWN)
+        vm.onBreakAction(StudyUiState.BreakAction.START_FORMAL)
+
+        // 正式阶段卡壳一次，然后重新刷满三遍
+        vm.flipNow()
+        vm.answer(Verdict.UNKNOWN)
+        vm.passAllKnown()
+
+        assertEquals(listOf(1L to Grade.GOOD), repo.persisted)
+        val state = repo.outcomes.single().second.newState
+        assertEquals("新词不因会话内卡壳受罚", 2.55, state.easeFactor, 1e-9)
+        assertEquals(LearningStage.LEARNING, state.stage)
+        assertEquals(clock + 3_600_000L, state.dueAt)
+    }
+
+    @Test
+    fun `复习一遍不错 - 只落一次 GOOD 进阶到2天`() {
+        val repo = FakeStudyRepository(due = listOf(item(1L, LearningStage.REVIEW)))
+        val vm = viewModel(repo)
+
+        vm.passAllKnown()
+
+        assertEquals(listOf(1L to Grade.GOOD), repo.persisted)
+        val state = repo.outcomes.single().second.newState
+        assertEquals(LearningStage.REVIEW, state.stage)
+        assertEquals(2.0, state.intervalDays, 1e-9)
+    }
+
+    @Test
+    fun `复习中途答不会 - 离队按 AGAIN 打回1小时重记`() {
+        val repo = FakeStudyRepository(due = listOf(item(1L, LearningStage.REVIEW)))
+        val vm = viewModel(repo)
+
+        // 第一遍就不会：归零沉底，不写库
+        vm.flipNow()
+        vm.answer(Verdict.UNKNOWN)
+        assertTrue(repo.persisted.isEmpty())
+
+        // 重新刷满三遍且全对，离队时只落一条 AGAIN
+        vm.passAllKnown()
+
+        assertEquals(listOf(1L to Grade.AGAIN), repo.persisted)
+        val state = repo.outcomes.single().second.newState
+        assertEquals(LearningStage.RELEARNING, state.stage)
+        assertEquals(clock + 3_600_000L, state.dueAt)
+    }
+
+    @Test
+    fun `复习时撤销答不会 - 失败计数清掉 离队仍按 GOOD`() {
+        val repo = FakeStudyRepository(due = listOf(item(1L, LearningStage.REVIEW)))
+        val vm = viewModel(repo)
+
+        vm.flipNow()
+        vm.answer(Verdict.UNKNOWN)
+        vm.undo()
+        assertTrue(repo.restored.isEmpty())
+
+        // 撤销后卡片回到第一遍，刷满三遍全对
+        vm.passAllKnown()
+
+        assertEquals(listOf(1L to Grade.GOOD), repo.persisted)
     }
 }

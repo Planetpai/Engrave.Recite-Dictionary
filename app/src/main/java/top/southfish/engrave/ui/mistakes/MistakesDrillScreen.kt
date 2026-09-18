@@ -106,7 +106,6 @@ private fun DrillPhase(state: DrillUiState.Drill, viewModel: MistakesDrillViewMo
             behindFaces = emptyList(),
             flipped = state.flipped,
             onTap = viewModel::flip,
-            onTripleTap = { },
             onSwipeLeft = if (gradeEnabled) {
                 { viewModel.answer(true) }
             } else {

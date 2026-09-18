@@ -32,7 +32,7 @@ object DayIndex {
     /**
      * 当前学习日的起点（今天凌晨 [ROLLOVER_HOUR] 点；凌晨 4 点前则是昨天的该时刻）。
      * 跨日逾期的学习卡用它做分界：dueAt 早于它 = 这张学习步卡片已经隔了一夜，
-     * 不再要求用户补走 10 分钟/1 小时步骤，直接毕业进当天复习队列。
+     * 不再要求用户补走 1 小时学习步，直接毕业进当天复习队列。
      */
     fun rolloverStart(epochMillis: Long, zone: ZoneId = ZoneId.systemDefault()): Long =
         nextRollover(epochMillis, zone) - MILLIS_PER_DAY

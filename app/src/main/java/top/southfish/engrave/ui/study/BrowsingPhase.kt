@@ -64,7 +64,7 @@ internal fun BrowsingPhase(state: StudyUiState.Browsing, viewModel: StudyViewMod
             },
             flipped = flipped,
             onTap = { flipped = !flipped },
-            onTripleTap = viewModel::undo,
+            onUndo = viewModel::undo,
             onLongPress = viewModel::addCurrentToMistakes,
             onSwipeLeft = { viewModel.answer(Verdict.KNOWN) },
             onSwipeUp = { viewModel.answer(Verdict.UNKNOWN) },

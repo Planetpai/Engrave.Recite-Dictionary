@@ -20,7 +20,7 @@ object SystemTimeProvider : TimeProvider {
  *
  * @param newState 更新后的调度状态，直接落库
  * @param scheduledInDays 距离下次到期还有多少天；学习阶段是分钟换算的小数，
- *   UI 可以据此显示「10 分钟后」还是「3 天后」
+ *   UI 可以据此显示「1 小时后」还是「3 天后」
  * @param graduated 本次是否从学习阶段毕业进入长期间隔复习
  */
 data class ReviewOutcome(

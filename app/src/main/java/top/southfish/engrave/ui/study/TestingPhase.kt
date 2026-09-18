@@ -18,7 +18,7 @@ import androidx.wear.compose.material.MaterialTheme
 import androidx.wear.compose.material.Text
 
 /**
- * 正式背单词与复习：点一下翻面，左滑「会」、上滑「不会」，三击撤销。
+ * 正式背单词与复习：点一下翻面，左滑「会」、上滑「不会」，双击卡片外区域撤销。
  *
  * 左滑而不是右滑：Wear 的系统返回手势是从左缘右滑，判定手势和它同向
  * 太容易误触退出。考法跟着刷到的遍数走（状态机决定）：每个词刷满三遍——
@@ -52,7 +52,7 @@ internal fun TestingPhase(state: StudyUiState.Testing, viewModel: StudyViewModel
             },
             flipped = card.flipped,
             onTap = viewModel::flip,
-            onTripleTap = viewModel::undo,
+            onUndo = viewModel::undo,
             onSwipeLeft = if (gradeEnabled) {
                 { viewModel.answer(Verdict.KNOWN) }
             } else {

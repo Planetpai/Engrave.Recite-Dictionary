@@ -32,14 +32,14 @@
 | 功能           | 说明                                                                                                           |
 | ------------ | ------------------------------------------------------------------------------------------------------------ |
 | 🗓️ 每日学习     | 按计划推送新词：浏览挑选 → 看英文想中文 → 看中文想英文 → 动手拼写，三遍加深记忆                                                                 |
-| 🔁 间隔复习（SRS） | 类 SM-2 调度：会的词少出现、不会的词多出现，复习计划自动排期                                                                            |
+| 🔁 间隔复习（SRS） | 类 SM-2 调度：新词学完 1 小时后进入复习，会的词少出现、不会的词多出现，复习计划自动排期                                                        |
 | ⏰ 每日提醒       | 精确闹钟定时震动提醒，后台被清理也能按时重排                                                                                       |
 | ❌ 错题集        | 不熟的词随手收进错题集，支持集中重刷与多选删除                                                                                      |
 | 🔍 离线词典搜索    | 内置 ECDICT 词典（59137 条），单词/中文都能搜，词条含音标、释义、例句、词形变换                                                              |
 | 📚 词书管理      | 内置初中/高中词书；支持从设备任意文件夹导入自制备 JSON 词书，可导出备份（）[词典工具](https://github.com/SouthFishowo/Engrave_DictionaryConverter) |
 | 👤 个人资料      | 头像（长按从相册选）、昵称（长按编辑）、连续天数与学习统计                                                                                |
 
-平台与版本：Wear OS · Kotlin + Jetpack Compose · 包名 `top.southfish.engrave` · 版本 `0.1BETA`
+平台与版本：Wear OS · Kotlin + Jetpack Compose · 包名 `top.southfish.engrave` · 版本 `0.21Beta`
 
 ---
 
@@ -58,7 +58,7 @@
 ## 快速开始（开发者）
 
 ```bash
-git clone <本仓库>
+git clone https://github.com/SouthFishowo/Engrave.Recite-Dictionary_Beta.git
 # Android Studio 打开工程，连接 Wear OS 手表/模拟器后直接 Run
 # 或命令行：
 .\gradlew assembleDebug
@@ -66,6 +66,29 @@ adb install -r app\build\outputs\apk\debug\app-debug.apk
 ```
 
 更多环境细节与发布流程见 [readme-code.md](readme-code.md)。
+
+---
+
+## 项目结构（本仓库）
+
+```
+Engrave.Recite-Dictionary_Beta/
+├── app/                          # Wear OS 应用本体（Kotlin + Jetpack Compose）
+│   └── src/main/java/top/southfish/engrave/
+│       ├── domain/               # 纯 Kotlin 业务层：SRS 调度、模型、UseCase（可单测）
+│       ├── data/                 # Room 数据库、仓库实现、会话快照、词书导入、备份
+│       ├── ui/                   # Compose 界面：study 学习状态机 / home / books / stats ...
+│       └── reminder/             # 精确闹钟提醒与四层重排兜底
+├── tools/                        # 词书工具
+│   ├── wordbook-converter.html   # 通用词典转换器（纯前端单文件，离线可用）
+│   └── build_wordbooks.py        # 从 ECDICT 生成内置初中/高中词书
+├── docs/                         # 刻词网站（GitHub Pages）
+├── readme-user.md                # 用户手册
+├── readme-code.md                # 开发者文档（环境/构建/完整代码结构/发布）
+└── readme-aicode.md              # AI 协作规范与模块级硬约束
+```
+
+完整代码结构树与各模块说明见 [readme-code.md 第 4 节](readme-code.md#4-代码结构)。
 
 ---
 

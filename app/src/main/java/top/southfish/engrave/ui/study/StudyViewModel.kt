@@ -35,8 +35,18 @@ import kotlinx.coroutines.launch
  * 考法跟着「刷到第几遍」走：每个词固定刷满三遍——第一遍英文面、第二遍
  * 中文面、第三遍拼写。答会进入下一遍，答不会归零回第一遍；两种情况都沉到
  * 队列最底层，把没刷完的先过完再回来，拼写通过（第三遍答会）才出队。
- * 三击撤销会把沉底的那张按 uid 摘掉，再把原卡放回队首（停在正面），并回滚
- * 数据库里的状态和日志（撤销栈不跨会话保留）。
+ *
+ * **每个词每次会话只落一次 SRS 评分**：三遍考法是同一次学习里的强化，
+ * 以前每一遍滑动都提交评分，新词的三次 GOOD 会在几分钟内连走完
+ * 「1 小时学习步 → 毕业」，分钟级到期时间被立刻覆盖，于是「学完 1 小时
+ * 后复习」永远不会出现。现在只有离队的那一下写库：
+ *   - 正式阶段（新词）：无论中途卡壳几次，统一 GOOD → 排到 1 小时后；
+ *   - 复习阶段（已学词）：中途答错过一次就按 AGAIN（打回 1 小时重记），
+ *     一遍不错才按 GOOD 进阶。
+ * 中途的「不会」只在内存的 [failureCounts] 里计数，不碰数据库和 ease。
+ *
+ * 双击卡片外区域撤销会把沉底的那张按 uid 摘掉，再把原卡放回队首（停在
+ * 正面），并回滚数据库里的状态和日志（撤销栈不跨会话保留）。
  */
 class StudyViewModel(
     private val getStudySession: GetStudySessionUseCase,
@@ -80,6 +90,13 @@ class StudyViewModel(
     private val newWords = LinkedHashSet<Long>()
     private val reviewWords = LinkedHashSet<Long>()
     private var againCount = 0
+
+    /**
+     * 复习阶段里每个词本会话「答不会」的次数（按 wordId 计数）。
+     * 词离队时据此决定落 GOOD 还是 AGAIN；撤销一次「不会」就减一。
+     * 随快照持久化，保证进程被杀后续学仍能正确判定。
+     */
+    private val failureCounts = HashMap<Long, Int>()
 
     init {
         startSession()
@@ -163,9 +180,13 @@ class StudyViewModel(
         newWords.forEach { browseSeen.add(it) }
         selectionTarget = snapshot.selectionTarget
         againCount = snapshot.againCount
-        snapshot.testQueue.forEach { card ->
+        failureCounts.putAll(snapshot.failureCounts)
+        snapshot.testQueue.forEachIndexed { index, card ->
             items[card.wordId]?.let { item ->
-                testQueue.add(makeCard(item, card.encounter).copy(flipped = card.flipped))
+                // 只有队首（当前卡）允许恢复翻面状态。旧版本可能把「中途卡被翻面」
+                // 写进快照（三击撤销时代的残留），直接恢复会让那张卡轮回时摊着答案。
+                val flipped = card.flipped && index == 0
+                testQueue.add(makeCard(item, card.encounter).copy(flipped = flipped))
             }
         }
 
@@ -238,6 +259,7 @@ class StudyViewModel(
         dueItems = emptyList()
         selectionTarget = 0
         againCount = 0
+        failureCounts.clear()
         busy = false
     }
 
@@ -292,7 +314,7 @@ class StudyViewModel(
         }
     }
 
-    /** 三击撤销上一张卡。提示页和完成页不响应。 */
+    /** 双击卡片外区域撤销上一张卡。提示页和完成页不响应。 */
     fun undo() {
         if (busy) return
         val state = _uiState.value
@@ -312,13 +334,26 @@ class StudyViewModel(
 
                 is UndoEntry.Test -> {
                     entry.requeuedUid?.let { uid -> testQueue.removeAll { it.uid == uid } }
+                    // 撤销的是上一张卡：当前这张可能已被翻面看过答案，它仍留在队列里，
+                    // 等被撤销的卡重做一轮后还会轮回到它。不复位的话回来直接摊着背面，
+                    // 等于开卷考试，所以连同翻面状态一起回滚到正面。
+                    testQueue.firstOrNull()?.let { current ->
+                        if (current.flipped) testQueue[0] = current.copy(flipped = false)
+                    }
                     testQueue.addFirst(entry.card)
                     if (entry.phase == TestPhase.FORMAL) {
                         newWords.remove(entry.wordId)
                     } else {
                         reviewWords.remove(entry.wordId)
                     }
-                    if (entry.verdict == Verdict.UNKNOWN) againCount--
+                    if (entry.verdict == Verdict.UNKNOWN) {
+                        againCount--
+                        // 撤回一次「不会」：计数减一，归零直接摘掉，避免影响
+                        // 这个词离队时 GOOD/AGAIN 的判定
+                        val left = (failureCounts[entry.wordId] ?: 1) - 1
+                        if (left <= 0) failureCounts.remove(entry.wordId)
+                        else failureCounts[entry.wordId] = left
+                    }
                     busy = false
                     emitTest(entry.direction)
                 }
@@ -427,31 +462,59 @@ class StudyViewModel(
         val card = testQueue.removeFirst()
         val item = card.item
         val direction = if (verdict == Verdict.KNOWN) SwipeDirection.LEFT else SwipeDirection.UP
-        val grade = if (verdict == Verdict.KNOWN) Grade.GOOD else Grade.AGAIN
         val elapsed = elapsed()
+
+        // 每个词每次会话只在「第三遍拼写通过、词要离队」时落一次库。
+        // 前两遍的「会」和任何时候的「不会」只在内存队列里流转，绝不写库——
+        // 以前每遍都提交，三次 GOOD 在几分钟内连走完「1 小时步→毕业」，
+        // 学完 1 小时后的复习永远不会出现。
+        if (verdict == Verdict.UNKNOWN) {
+            failureCounts[item.wordId] = (failureCounts[item.wordId] ?: 0) + 1
+        }
+        val isFinalPass = verdict == Verdict.KNOWN && card.encounter >= KIND_CYCLE.size
+        val grade: Grade? = when {
+            !isFinalPass -> null
+            // 正式阶段都是新词：会话内卡壳不扣 ease，统一 GOOD，排到 1 小时后
+            phase == TestPhase.FORMAL -> Grade.GOOD
+            // 复习阶段：中途答错过一次就按 AGAIN 打回 1 小时重记，否则 GOOD 进阶
+            (failureCounts[item.wordId] ?: 0) > 0 -> Grade.AGAIN
+            else -> Grade.GOOD
+        }
 
         busy = true
         viewModelScope.launch {
-            val outcome = submitReview(item, grade, elapsed)
+            if (grade != null) submitReview(item, grade, elapsed)
             if (phase == TestPhase.FORMAL) newWords.add(item.wordId) else reviewWords.add(item.wordId)
             if (verdict == Verdict.UNKNOWN) againCount++
 
             var requeuedUid: Long? = null
             // 会也刷满三遍：过完当前这遍沉底排队下一遍；不会归零回第一遍。
-            // 第三遍拼写答会才算出队。
+            // 第三遍拼写答会才算出队（此时 grade 非 null 但不再重排）。
             val nextPass: Int? = when {
                 verdict == Verdict.UNKNOWN -> FIRST_PASS
                 card.encounter < KIND_CYCLE.size -> card.encounter + 1
                 else -> null
             }
             nextPass?.let { pass ->
-                val requeue = makeCard(item.copy(state = outcome.newState), pass)
+                // 能重排说明词还没离队，这一下必然没落库，状态保持原样
+                val requeue = makeCard(item, pass)
                 requeuedUid = requeue.uid
                 testQueue.addLast(requeue)
             }
 
-            // 撤销时卡片要回到它刚出现的样子：停在正面，而不是评分时翻开的背面
-            undoStack.add(UndoEntry.Test(item.wordId, item.state, direction, verdict, phase, card.copy(flipped = false), requeuedUid))
+            // 撤销时卡片要回到它刚出现的样子：停在正面，而不是评分时翻开的背面。
+            // stateBefore 为 null 表示这一下压根没写库，撤销时也不碰数据库。
+            undoStack.add(
+                UndoEntry.Test(
+                    item.wordId,
+                    if (grade != null) item.state else null,
+                    direction,
+                    verdict,
+                    phase,
+                    card.copy(flipped = false),
+                    requeuedUid
+                )
+            )
             busy = false
             advanceTest()
         }
@@ -584,6 +647,7 @@ class StudyViewModel(
                 newWords = newWords.toList(),
                 reviewWords = reviewWords.toList(),
                 againCount = againCount,
+                failureCounts = HashMap(failureCounts),
                 breakTitle = breakTitle,
                 breakSubtitle = breakSubtitle
             )

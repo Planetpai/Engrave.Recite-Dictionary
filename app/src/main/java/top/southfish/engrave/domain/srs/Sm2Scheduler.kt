@@ -20,7 +20,7 @@ import kotlin.random.Random
  * 4. ease hell 保护：ease < 2.0 时 GOOD 给 +0.10（正常 +0.05）
  * 5. 学习阶段最后一步点 HARD 直接毕业
  * 6. 逾期补偿：晚复习的天数按 0.5 系数加到新间隔
- * 7. fuzz：天级间隔加 ±5% 整数天抖动，10 分钟/1 小时不加
+ * 7. fuzz：天级间隔加 ±5% 整数天抖动，1 小时学习步不加
  *
  * 纯函数：所有随机性通过构造时注入的 [random] 控制，方便测试。
  */
@@ -45,10 +45,11 @@ class Sm2Scheduler(
     // ---------------------------------------------------------------- 学习阶段
     private fun scheduleLearning(state: ReviewState, grade: Grade, now: Long): ReviewOutcome {
         val steps = params.learningStepsMinutes
-        // stepIndex 语义是「当前所在步」：
-        //   新词(NEW)还没进任何步；首次 GOOD 先进 steps[0]（10 分钟），
-        //   再次 GOOD 才进 steps[1]（1 小时），走完最后一步毕业。
-        //   旧实现首次 GOOD 直接跳到 steps[1]，10 分钟步在正常路径上被跳过。
+        // stepIndex 语义是「当前所在步」。学习阶段只有一步（1 小时）：
+        //   新词(NEW)首次 GOOD 先进 steps[0]（1 小时，不毕业），
+        //   1 小时后复习再答 GOOD（此时已在最后一步）才毕业到第一档。
+        //   会话内的三遍考法由 UI 层保证只在最后一遍落一次评分，
+        //   所以这「两次 GOOD」天然发生在不同会话，中间隔着真实的 1 小时。
         val isNew = state.stage == LearningStage.NEW
         val stepIndex = state.stepIndex.coerceIn(0, steps.lastIndex)
         val isLastStep = !isNew && stepIndex >= steps.lastIndex
@@ -338,7 +339,7 @@ class Sm2Scheduler(
      * 计算天级间隔的到期时间：锚定到「下一个凌晨 4 点」+ ceil(间隔天数 - 1) 天 + fuzz。
      * 用 ceil 是因为 SM-2 乘法会产生小数间隔（如 38.25 天），直接乘毫秒会让
      * 到期时间偏离 4AM；向上取整保证到期时刻始终精确在 4:00:00。
-     * 10 分钟/1 小时不走这里（由调用方直接 now + 毫秒）。
+     * 1 小时学习步不走这里（由调用方直接 now + 毫秒）。
      */
     private fun dayAnchoredDueAt(intervalDays: Double, now: Long): Long {
         val offsetDays = kotlin.math.ceil(intervalDays - 1.0).toLong()
@@ -350,7 +351,7 @@ class Sm2Scheduler(
 
     /**
      * fuzz：±5% 的整数天。间隔 < 20 天时 5% 不足 1 天，fuzz 为 0。
-     * 10 分钟/1 小时的调用方不会走到这里，所以天然不加抖动。
+     * 1 小时学习步的调用方不会走到这里，所以天然不加抖动。
      */
     private fun fuzzDays(intervalDays: Double): Long {
         val magnitude = (intervalDays * params.fuzzRatio).toLong()

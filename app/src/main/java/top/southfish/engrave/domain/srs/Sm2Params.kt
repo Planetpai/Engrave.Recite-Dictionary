@@ -4,20 +4,24 @@ package top.southfish.engrave.domain.srs
  * SM-2-ish 调度器的可调参数。
  *
  * 设计说明（2026-09 改造）：
- * - 学习阶段：[10 分钟, 1 小时] 两步，精确时间到期（不锚定 4AM）
+ * - 学习阶段：单步 [1 小时]，精确时间到期（不锚定 4AM）。
+ *   一个词在学习会话内的「英→中→拼写」三遍考法只在离队时落一次 GOOD，
+ *   于是新词学完统一在 1 小时后回到复习队列；1 小时那次复习再答会才毕业。
+ *   早期的 [10 分钟, 1 小时] 两步会被同会话的三遍评分连续走完，分钟级到期
+ *   时间被立刻覆盖，10 分钟那步在正常路径上永远不会出现，故移除。
  * - 复习阶段：先走固定阶梯 [1, 2, 4, 7, 15] 天，15 天后转 SM-2 乘法（interval × ease）
  * - 所有天级间隔的到期时间锚定到「下一个凌晨 4 点」+ (间隔-1) 天，
  *   保证同一天学的卡统一在次日 4 点到期，避免分散在不同时刻
- * - fuzz 只加在天级间隔上，单位为整数天（±5%），10 分钟/1 小时不加抖动
+ * - fuzz 只加在天级间隔上，单位为整数天（±5%），1 小时学习步不加抖动
  */
 data class Sm2Params(
     val initialEase: Double = 2.5,
     val minimumEase: Double = 1.3,
 
-    /** 学习阶段的分钟级步骤。 */
-    val learningStepsMinutes: List<Double> = listOf(10.0, 60.0),
-    /** 重记步骤（RELEARNING）。 */
-    val relearningStepsMinutes: List<Double> = listOf(10.0),
+    /** 学习阶段的分钟级步骤：学完 1 小时后到期复习。 */
+    val learningStepsMinutes: List<Double> = listOf(60.0),
+    /** 重记步骤（RELEARNING）：忘词后 1 小时再考一次，通过才按折半间隔毕业。 */
+    val relearningStepsMinutes: List<Double> = listOf(60.0),
 
     /**
      * 复习阶段的天级阶梯。走完最后一档（15 天）后转 SM-2 乘法。
@@ -46,7 +50,7 @@ data class Sm2Params(
     val maximumIntervalDays: Double = 365.0 * 5,
     val resetRepetitionsOnLapse: Boolean = true,
 
-    /** fuzz：天级间隔的随机抖动比例（±5%），取整为整数天。10 分钟/1 小时不加。 */
+    /** fuzz：天级间隔的随机抖动比例（±5%），取整为整数天。1 小时学习步不加。 */
     val fuzzRatio: Double = 0.05,
 
     /** 逾期补偿：新间隔 += 逾期天数 × 此系数，上限 = 原间隔 × [overdueCompensationMaxMultiplier]。 */
