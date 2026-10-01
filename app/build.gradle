@@ -15,8 +15,8 @@ android {
         // 设置→安全与隐私→许可管理器→文件 里，用户才能手动授予存储权限；
         // targetSdk 30+ 在手表上没有任何用户可授予的文件权限（无所有文件访问页、SAF 是空壳）
         targetSdk 29
-        versionCode 3
-        versionName "0.21Beta"
+        versionCode 4
+        versionName "0.2beta.3"
     }
 
     buildTypes {

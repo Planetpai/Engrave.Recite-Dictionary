@@ -43,6 +43,19 @@ data class Sm2Params(
     val easyEaseBonus: Double = 0.25,
     val easyRungJump: Int = 2,
 
+    /**
+     * 浏览阶段「已学过」（NEW EASY）的毕业间隔档位：直接跳到阶梯末尾（15 天）。
+     * 用户主动声明「已经熟练背诵过」，语义强于 Anki 的 Easy，间隔给最长的天级档。
+     * 下次 GOOD 直接进 SM-2 乘法区（15 × ease）。
+     */
+    val easyGraduationRungIndex: Int = 4,
+    /**
+     * NEW EASY 毕业时额外的整数天 fuzz（±N 天），用于把「已学过」的词分散开，
+     * 避免全部挤在同一天到期。15 天 × 5% 不足 1 天，通用 fuzz 给不出抖动，
+     * 所以对 EASY 单独加这一份。
+     */
+    val easyFuzzDays: Int = 3,
+
     /** 忘词后重记毕业的新间隔 = max(minimumLapseIntervalDays, 旧间隔 × lapseIntervalMultiplier)。 */
     val lapseIntervalMultiplier: Double = 0.5,
     val minimumLapseIntervalDays: Double = 1.0,

@@ -100,14 +100,16 @@ class Sm2Scheduler(
             }
 
             Grade.EASY -> {
-                // EASY 直接毕业，跳到第二档（2 天）
-                val rungIndex = minOf(1, params.reviewIntervalLadderDays.lastIndex)
+                // EASY 直接毕业：跳到阶梯末尾（15 天），并加 ±easyFuzzDays 天的 fuzz 分散。
+                // 用户在浏览阶段主动声明「已学过」，语义强于普通 Easy，给最长天级间隔。
+                val rungIndex = params.easyGraduationRungIndex.coerceAtMost(params.reviewIntervalLadderDays.lastIndex)
                 graduate(
                     state,
                     now,
                     intervalDays = params.reviewIntervalLadderDays[rungIndex],
                     rungIndex = rungIndex,
-                    easeChange = params.easyEaseBonus
+                    easeChange = params.easyEaseBonus,
+                    fuzzExtraDays = params.easyFuzzDays
                 )
             }
         }
@@ -414,11 +416,17 @@ class Sm2Scheduler(
         now: Long,
         intervalDays: Double,
         rungIndex: Int,
-        easeChange: Double = 0.0
+        easeChange: Double = 0.0,
+        /** 额外的整数天 fuzz（±N 天），目前只给 NEW EASY 用来分散「已学过」的到期日。 */
+        fuzzExtraDays: Int = 0
     ): ReviewOutcome {
         val newEase = clampEase(state.easeFactor + easeChange)
         val clamped = max(1.0, min(intervalDays, params.maximumIntervalDays))
-        val dueAt = dayAnchoredDueAt(clamped, now)
+        var dueAt = dayAnchoredDueAt(clamped, now)
+        if (fuzzExtraDays > 0) {
+            val sign = if (random.nextBoolean()) 1 else -1
+            dueAt += sign * fuzzExtraDays * MILLIS_PER_DAY
+        }
         return ReviewOutcome(
             newState = state.copy(
                 stage = LearningStage.REVIEW,

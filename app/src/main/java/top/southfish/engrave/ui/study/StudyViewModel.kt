@@ -468,10 +468,23 @@ class StudyViewModel(
         // 前两遍的「会」和任何时候的「不会」只在内存队列里流转，绝不写库——
         // 以前每遍都提交，三次 GOOD 在几分钟内连走完「1 小时步→毕业」，
         // 学完 1 小时后的复习永远不会出现。
+        // 复习阶段分两条路：
+        //   快速路（本会话还没答错过）：只考一遍英文面，答会直接出队落 GOOD；
+        //   强化路（已经答错过至少一次）：走完整三轮（英→中→拼写），三轮全对才出队，
+        //               因 failureCounts>0 落 AGAIN 打回 1 小时重记。
+        // 正式阶段（新词）始终走三轮。failedBefore 在更新 failureCounts 之前捕获，
+        // 表示「答这一遍之前」是否已经失败过——KNOWN 不更新计数，所以对 KNOWN 判定准确。
+        val failedBefore = (failureCounts[item.wordId] ?: 0) > 0
         if (verdict == Verdict.UNKNOWN) {
             failureCounts[item.wordId] = (failureCounts[item.wordId] ?: 0) + 1
         }
-        val isFinalPass = verdict == Verdict.KNOWN && card.encounter >= KIND_CYCLE.size
+        val isFinalPass = when {
+            verdict == Verdict.UNKNOWN -> false
+            // 复习快速路：答会即出队，不进三轮
+            phase == TestPhase.REVIEW && !failedBefore -> true
+            // 新词 & 复习强化路：刷满三遍才出队
+            else -> card.encounter >= KIND_CYCLE.size
+        }
         val grade: Grade? = when {
             !isFinalPass -> null
             // 正式阶段都是新词：会话内卡壳不扣 ease，统一 GOOD，排到 1 小时后
@@ -488,9 +501,10 @@ class StudyViewModel(
             if (verdict == Verdict.UNKNOWN) againCount++
 
             var requeuedUid: Long? = null
-            // 会也刷满三遍：过完当前这遍沉底排队下一遍；不会归零回第一遍。
-            // 第三遍拼写答会才算出队（此时 grade 非 null 但不再重排）。
+            // 出队（isFinalPass）就不再重排；否则答会沉底排下一遍、答不会归零回第一遍。
+            // 复习快速路答会时 isFinalPass=true，直接出队，不进三轮。
             val nextPass: Int? = when {
+                isFinalPass -> null
                 verdict == Verdict.UNKNOWN -> FIRST_PASS
                 card.encounter < KIND_CYCLE.size -> card.encounter + 1
                 else -> null

@@ -10,6 +10,7 @@ import android.widget.EditText
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -34,6 +35,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -311,8 +314,34 @@ private fun AboutSection() {
             color = MaterialTheme.colors.onSurfaceVariant.copy(alpha = 0.8f),
             textAlign = TextAlign.Center
         )
+        // 最底部的 QQ 交流群：点一下复制群号，方便在手表上记下后去手机加群
+        Spacer(Modifier.height(8.dp))
+        var qqCopied by remember { mutableStateOf(false) }
+        val clipboard = LocalClipboardManager.current
+        LaunchedEffect(qqCopied) {
+            if (qqCopied) {
+                delay(1500)
+                qqCopied = false
+            }
+        }
+        Text(
+            text = if (qqCopied) "群号已复制" else "QQ 交流群 832695614",
+            style = MaterialTheme.typography.caption2,
+            color = MaterialTheme.colors.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+            modifier = Modifier
+                .clip(CircleShape)
+                .clickable {
+                    clipboard.setText(AnnotatedString(QQ_GROUP_NUMBER))
+                    qqCopied = true
+                }
+                .padding(horizontal = 12.dp, vertical = 6.dp)
+        )
     }
 }
+
+/** 用户反馈用的 QQ 交流群号，「我的」页底部点击复制。 */
+private const val QQ_GROUP_NUMBER = "832695614"
 
 private fun ScalingLazyListScope.menuChip(label: String, onClick: () -> Unit) {
     item {

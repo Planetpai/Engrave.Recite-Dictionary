@@ -13,7 +13,7 @@
 | ------------------------------- | -------------------------------------- |
 | 应用名                             | 刻词（Engrave）                            |
 | 包名                              | `top.southfish.engrave`                |
-| 版本                              | 目前最新版本`0.21Beta`（versionCode 3）         |
+| 版本                              | 目前最新版本`0.2beta.3`（versionCode 4）         |
 | minSdk / targetSdk / compileSdk | 28 / **29** / 34（targetSdk 故意压在 29，见下） |
 
 > **为什么 targetSdk 是 29**：One UI Watch 的「设置 → 安全与隐私 → 许可管理器 → 文件」只对 targetSdk≤29 的传统存储应用开放存储权限授予（运行时弹窗同理）；targetSdk 30+ 在手表上没有任何用户可授予的文件权限（无「所有文件访问」页、SAF 是空壳）。targetSdk 29 + `requestLegacyExternalStorage` + 授予 `READ_EXTERNAL_STORAGE` 即可用 `java.io.File` 直接读 Download（2026-09-09 真机验证通过）。**不要升 targetSdk**，除非找到替代的文件访问方案。

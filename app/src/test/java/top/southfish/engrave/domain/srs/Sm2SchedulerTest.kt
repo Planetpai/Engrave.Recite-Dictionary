@@ -118,12 +118,15 @@ class Sm2SchedulerTest {
     }
 
     @Test
-    fun `新词答简单 - 跳过学习步骤直接毕业到 2 天`() {
+    fun `新词答简单 - 跳过学习步骤直接毕业到 15 天 并加fuzz分散`() {
         val outcome = scheduler.schedule(newState(), Grade.EASY, now)
 
         assertEquals(LearningStage.REVIEW, outcome.newState.stage)
-        assertEquals(2.0, outcome.newState.intervalDays, 1e-9)
-        assertEquals(next4am + day, outcome.newState.dueAt)
+        assertEquals(15.0, outcome.newState.intervalDays, 1e-9)
+        assertEquals(4, outcome.newState.stepIndex)  // 阶梯末档（15 天）
+        // 基础 = next4am + 14 天，再加 ±3 天 fuzz → 到期日落在 [11, 17] 天区间
+        val dueDays = (outcome.newState.dueAt - next4am).toDouble() / day
+        assertTrue("dueAt 应在 15±3 天区间，实际 ${dueDays}天", dueDays in 10.9..17.1)
         assertTrue(outcome.graduated)
         // ease 2.5 + 0.25
         assertEquals(2.75, outcome.newState.easeFactor, 1e-9)
