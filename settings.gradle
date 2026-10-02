@@ -16,3 +16,4 @@ dependencyResolutionManagement {
 rootProject.name = "VocabWatch"
 include ':app'
 include ':core'
+include ':app-phone'

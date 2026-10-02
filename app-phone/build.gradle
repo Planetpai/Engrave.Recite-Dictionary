@@ -1,0 +1,103 @@
+plugins {
+    id 'com.android.application'
+    id 'org.jetbrains.kotlin.android'
+}
+
+android {
+    namespace 'top.southfish.engrave.phone'
+    compileSdk 34
+
+    defaultConfig {
+        // 与 Wear 版（top.southfish.engrave）包名独立，可在同一设备并存
+        applicationId "top.southfish.engrave.phone"
+        // 26：支持 Android 8.0 的非 Wear OS 手表
+        minSdk 26
+        // 29：与 Wear 版一致，传统存储读词书文件，无需 SAF
+        targetSdk 29
+        versionCode 1
+        versionName "0.1beta.1"
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled true
+            // 侧载分发包用 debug 密钥签名，与 Wear 版策略一致
+            signingConfig signingConfigs.debug
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+    kotlinOptions {
+        jvmTarget = '17'
+    }
+    buildFeatures {
+        compose true
+    }
+    composeOptions {
+        kotlinCompilerExtensionVersion '1.5.4'
+    }
+    lint {
+        // targetSdk 29 是有意保留（传统存储权限，见 defaultConfig 注释），
+        // 其过期告警不应阻断 release 打包
+        abortOnError false
+        checkReleaseBuilds false
+    }
+}
+
+dependencies {
+    // 与 Wear 版共享的核心层（SM-2 调度 / 数据 / 提醒 / ViewModel）
+    implementation project(':core')
+
+    implementation 'androidx.core:core-ktx:1.12.0'
+
+    // Compose（Material 3 基座替代 androidx.wear.compose）
+    implementation platform('androidx.compose:compose-bom:2023.10.01')
+    implementation 'androidx.compose.ui:ui'
+    implementation 'androidx.compose.ui:ui-tooling-preview'
+    // 卡片手势（pointerInput / detectDragGestures）和翻面动画（Animatable）直接依赖这两个
+    implementation 'androidx.compose.foundation:foundation'
+    implementation 'androidx.compose.animation:animation'
+    // material3 钉 1.2.0（BOM 2023.10.01 默认 1.1.2）；1.2.0 拉动 compose 运行时到 1.6.2
+    implementation 'androidx.compose.material3:material3:1.2.0'
+    // 非 Wear 环境：标准导航 + 系统返回
+    implementation 'androidx.navigation:navigation-compose:2.7.5'
+    implementation 'androidx.activity:activity-compose:1.8.1'
+
+    implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.6.2'
+    implementation 'androidx.lifecycle:lifecycle-viewmodel-compose:2.6.2'
+
+    // :core 以 implementation 引 datastore，PhoneApplication 直接读
+    // settingsDataStore（DataStore<Preferences>），需在本模块显式声明
+    implementation 'androidx.datastore:datastore-preferences:1.0.0'
+
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3'
+
+    debugImplementation 'androidx.compose.ui:ui-tooling'
+
+    // dl.google.com 在国内网络下对未缓存 AAR 极易超时。material3 1.2.0 的传递
+    // 版本是 compose 1.6.0，本机 gradle-home 只缓存了 1.5.4/1.6.2/1.7.3——
+    // 用 constraints 把 compose 组整体钉到 1.6.2（全部已缓存），纯离线可解析。
+    constraints {
+        def composeVersion = '1.6.2'
+        implementation "androidx.compose.ui:ui:$composeVersion"
+        implementation "androidx.compose.ui:ui-graphics:$composeVersion"
+        implementation "androidx.compose.ui:ui-text:$composeVersion"
+        implementation "androidx.compose.ui:ui-unit:$composeVersion"
+        implementation "androidx.compose.ui:ui-util:$composeVersion"
+        implementation "androidx.compose.ui:ui-geometry:$composeVersion"
+        implementation "androidx.compose.ui:ui-tooling-preview:$composeVersion"
+        implementation "androidx.compose.runtime:runtime:$composeVersion"
+        implementation "androidx.compose.runtime:runtime-saveable:$composeVersion"
+        implementation "androidx.compose.foundation:foundation:$composeVersion"
+        implementation "androidx.compose.foundation:foundation-layout:$composeVersion"
+        implementation "androidx.compose.animation:animation:$composeVersion"
+        implementation "androidx.compose.animation:animation-core:$composeVersion"
+        implementation "androidx.compose.material:material:$composeVersion"
+        implementation "androidx.compose.material:material-ripple:$composeVersion"
+        implementation "androidx.compose.material:material-icons-core:$composeVersion"
+        debugImplementation "androidx.compose.ui:ui-tooling:$composeVersion"
+    }
+}
