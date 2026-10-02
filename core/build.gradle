@@ -1,0 +1,58 @@
+plugins {
+    id 'com.android.library'
+    id 'org.jetbrains.kotlin.android'
+    id 'com.google.devtools.ksp'
+}
+
+android {
+    // namespace 必须各模块唯一（AGP 8 校验）：core 用带后缀的独立 namespace 生成
+    // 自己的 R（top.southfish.engrave.core.R）；迁移的业务类保持原包名不变，
+    // 两个 app 的代码引用零改动
+    namespace 'top.southfish.engrave.core'
+    compileSdk 34
+
+    defaultConfig {
+        // 26：手机/非 Wear 手表版支持到 Android 8.0；:app(Wear) 自己仍是 minSdk 28
+        minSdk 26
+        consumerProguardFiles 'consumer-rules.pro'
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+    kotlinOptions {
+        jvmTarget = '17'
+    }
+    testOptions {
+        unitTests.returnDefaultValues = true
+    }
+}
+
+ksp {
+    arg('room.schemaLocation', "$projectDir/schemas")
+    arg('room.incremental', 'true')
+}
+
+dependencies {
+    def room_version = '2.6.1'
+
+    implementation 'androidx.core:core-ktx:1.12.0'
+
+    // Room
+    implementation "androidx.room:room-runtime:$room_version"
+    implementation "androidx.room:room-ktx:$room_version"
+    ksp "androidx.room:room-compiler:$room_version"
+
+    // DataStore：学习设置（每日新词上限等）
+    implementation 'androidx.datastore:datastore-preferences:1.0.0'
+
+    // ViewModel（不含 Compose，UI 层由各 app 模块自备）
+    implementation 'androidx.lifecycle:lifecycle-viewmodel-ktx:2.6.2'
+
+    // Coroutines
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3'
+
+    testImplementation 'junit:junit:4.13.2'
+    testImplementation 'org.jetbrains.kotlinx:kotlinx-coroutines-test:1.7.3'
+}

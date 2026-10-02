@@ -115,11 +115,14 @@ fun WordDetailScreen(
                     )
                 }
             } else {
-                if (state.display != DefinitionDisplay.EN && !entry.meaningZh.isNullOrBlank()) {
-                    definitionSection("释义", entry.meaningZh.split("\n"))
+                // entry 来自 :core 模块，属性跨模块不能 smart cast，先落局部变量
+                val meaningZh = entry.meaningZh
+                val definitionEn = entry.definitionEn
+                if (state.display != DefinitionDisplay.EN && !meaningZh.isNullOrBlank()) {
+                    definitionSection("释义", meaningZh.split("\n"))
                 }
-                if (state.display != DefinitionDisplay.ZH && !entry.definitionEn.isNullOrBlank()) {
-                    definitionSection("English", entry.definitionEn.split("\n"))
+                if (state.display != DefinitionDisplay.ZH && !definitionEn.isNullOrBlank()) {
+                    definitionSection("English", definitionEn.split("\n"))
                 }
 
                 if (forms.isNotEmpty()) {
