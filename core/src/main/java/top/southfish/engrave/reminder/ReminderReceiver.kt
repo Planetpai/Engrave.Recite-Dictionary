@@ -6,8 +6,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import androidx.core.app.NotificationCompat
-import top.southfish.engrave.MainActivity
-import top.southfish.engrave.R
+import top.southfish.engrave.core.R
 import top.southfish.engrave.data.repository.REMINDER_MINUTES_KEY
 import top.southfish.engrave.data.repository.settingsDataStore
 import kotlinx.coroutines.CoroutineScope
@@ -26,7 +25,10 @@ class ReminderReceiver : BroadcastReceiver() {
         val contentIntent = PendingIntent.getActivity(
             appContext,
             0,
-            Intent(appContext, MainActivity::class.java).apply {
+            // 用字符串组件名而不是 MainActivity::class.java：core 不能依赖 app 层
+            // 的 Activity 类。约定各 app 的 MainActivity 都在其 namespace 根包
+            // （= 运行时 packageName）下，这里按包名拼出全类名
+            Intent().setClassName(appContext.packageName, appContext.packageName + ".MainActivity").apply {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             },
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE

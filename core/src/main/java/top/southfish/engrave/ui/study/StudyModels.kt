@@ -86,3 +86,31 @@ sealed interface StudyUiState {
         val againCount: Int
     ) : StudyUiState
 }
+
+private const val SINGLE_LETTER_MAX = 6
+
+/**
+ * 拼写卡的分块：只用于拼写，不动单词本体在其它卡面上的显示。
+ *
+ * 长词拆成「前 3 个字母 + 剩余部分从尾往头每 2 个字母一组」，
+ * 例如 disability → dis / a / bi / li / ty。短词（≤[SINGLE_LETTER_MAX]）
+ * 保持逐字母。以后接入词典后，可以换成按词根词缀的更聪明的拆法，
+ * 调用方（状态机）只认 List<String>，不用改。
+ *
+ * 从 SpellingPanel.kt（UI 层）迁入 core：唯一调用方 StudyViewModel 在 core，
+ * 跨模块 internal 不可见，须同模块。
+ */
+internal fun spellingChunks(term: String): List<String> {
+    val letters = term.lowercase().filter { it.isLetter() }
+    if (letters.length <= SINGLE_LETTER_MAX) return letters.map { it.toString() }
+    val head = letters.take(3)
+    val rest = letters.drop(3)
+    val tail = ArrayDeque<String>()
+    var end = rest.length
+    while (end > 0) {
+        val start = maxOf(0, end - 2)
+        tail.addFirst(rest.substring(start, end))
+        end = start
+    }
+    return listOf(head) + tail
+}
