@@ -6,7 +6,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.runtime.Composable
@@ -175,7 +174,8 @@ private fun HomeContent(
                 onClick = onStartStudy,
                 enabled = state.buttonEnabled,
                 modifier = Modifier
-                    .width(150.dp)
+                    .fillMaxWidth()
+                    .padding(horizontal = 40.dp)
                     .padding(top = 8.dp)
             ) {
                 Text(state.buttonLabel)
@@ -190,7 +190,8 @@ private fun HomeContent(
                     containerColor = MaterialTheme.colorScheme.surface
                 ),
                 modifier = Modifier
-                    .width(150.dp)
+                    .fillMaxWidth()
+                    .padding(horizontal = 40.dp)
                     .padding(top = 2.dp)
             ) {
                 Text("错题本")
