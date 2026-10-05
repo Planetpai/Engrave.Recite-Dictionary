@@ -34,7 +34,7 @@
         android:label="@string/app_name"
         android:requestLegacyExternalStorage="true"
         android:supportsRtl="true"
-        android:theme="@android:style/Theme.DeviceDefault">
+        android:theme="@android:style/Theme.DeviceDefault.NoActionBar">
 
         <!-- 注意：与 Wear 版不同，这里没有 com.google.android.wearable
              uses-library —— 正是它导致应用被 Wear OS 专属过滤 -->
@@ -43,7 +43,7 @@
             android:name="top.southfish.engrave.phone.MainActivity"
             android:exported="true"
             android:label="@string/app_name"
-            android:theme="@android:style/Theme.DeviceDefault">
+            android:theme="@android:style/Theme.DeviceDefault.NoActionBar">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
