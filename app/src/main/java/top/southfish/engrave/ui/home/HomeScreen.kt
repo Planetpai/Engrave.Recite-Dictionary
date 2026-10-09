@@ -49,6 +49,7 @@ fun HomeScreen(
     onOpenData: () -> Unit,
     onOpenMistakes: () -> Unit,
     onPickAvatar: () -> Unit,
+    onOpenTutorial: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val viewModel = vocabViewModel<HomeViewModel> { container ->
@@ -94,6 +95,7 @@ fun HomeScreen(
                     onOpenSettings = onOpenSettings,
                     onOpenData = onOpenData,
                     onPickAvatar = onPickAvatar,
+                    onOpenTutorial = onOpenTutorial,
                     listState = profileListState
                 )
             }

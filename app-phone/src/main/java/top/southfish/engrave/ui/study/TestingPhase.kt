@@ -63,8 +63,6 @@ internal fun TestingPhase(state: StudyUiState.Testing, viewModel: StudyViewModel
             } else {
                 null
             },
-            leftHint = "← 会",
-            upHint = "↑ 不会",
             undoReplay = state.undoReplay,
             modifier = Modifier
                 .weight(1f)

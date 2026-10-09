@@ -44,8 +44,6 @@ fun StudyCardDeck(
     onLongPress: (() -> Unit)? = null,
     onSwipeLeft: (() -> Unit)?,
     onSwipeUp: (() -> Unit)?,
-    leftHint: String?,
-    upHint: String?,
     modifier: Modifier = Modifier,
     undoReplay: SwipeDirection? = null,
     front: @Composable ColumnScope.() -> Unit,
@@ -162,13 +160,6 @@ fun StudyCardDeck(
                     )
                 }
             }
-
-            CardHintOverlay(
-                leftHint = if (allowLeft) leftHint else null,
-                upHint = if (allowUp) upHint else null,
-                leftProgress = { (-offsetX.value / thresholds.commitX).coerceIn(0f, 1f) },
-                upProgress = { (-offsetY.value / thresholds.commitY).coerceIn(0f, 1f) }
-            )
         }
     }
 }

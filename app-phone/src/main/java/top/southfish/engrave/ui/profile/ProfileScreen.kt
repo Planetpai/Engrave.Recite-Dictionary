@@ -72,6 +72,7 @@ fun ProfileContent(
     onOpenSettings: () -> Unit,
     onOpenData: () -> Unit,
     onPickAvatar: () -> Unit,
+    onOpenTutorial: () -> Unit,
     listState: androidx.compose.foundation.lazy.LazyListState,
     modifier: Modifier = Modifier
 ) {
@@ -235,6 +236,7 @@ fun ProfileContent(
         menuChip("词书管理", onOpenBooks)
         menuChip("背单词设置", onOpenSettings)
         menuChip("数据管理", onOpenData)
+        menuChip("使用指引", onOpenTutorial)
 
         item {
             // 第二条灰线：功能区和应用信息区分开
@@ -309,7 +311,8 @@ private fun AboutSection() {
             text = "本应用使用了开源内容\n" +
                 "Jetpack Compose · AndroidX · Room\n" +
                 "（Apache License 2.0）\n" +
-                "ECDICT 词典数据（MIT License）",
+                "ECDICT 词典数据（MIT License）\n" +
+                "短语数据：kajweb/dict（有道考神词书）",
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
             textAlign = TextAlign.Center

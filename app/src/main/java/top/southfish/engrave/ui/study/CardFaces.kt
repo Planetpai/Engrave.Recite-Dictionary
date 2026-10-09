@@ -13,8 +13,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
-import androidx.wear.compose.material.MaterialTheme
-import androidx.wear.compose.material.Text
 
 /** AMOLED 省电：卡片底色贴近纯黑，只靠一道暗边框和叠卡阴影分出层次。 */
 internal val CardShape = RoundedCornerShape(22.dp)
@@ -34,25 +32,11 @@ internal fun CardFace(
             .clip(CardShape)
             .background(CardSurfaceColor)
             .border(1.dp, CardBorderColor, CardShape)
-            // 上下留出手势提示条（↑ 不认识贴顶部中央 / ← 已学过贴左下角）的
-            // 安全区，内容居中排布，避免和提示徽章叠字
+            // 上下 padding 曾是手势提示徽章的安全区；徽章移除后数值保留，
+            // 内容居中排布的版式不变
             .padding(start = 12.dp, end = 12.dp, top = 18.dp, bottom = 26.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
         content = content
-    )
-}
-
-/** 手势引导标识，贴在卡片边缘告诉用户往哪滑。 */
-@Composable
-internal fun HintBadge(text: String, modifier: Modifier = Modifier) {
-    Text(
-        text = text,
-        style = MaterialTheme.typography.caption2,
-        color = HintTextColor,
-        modifier = modifier
-            .clip(RoundedCornerShape(50))
-            .background(HintBackgroundColor)
-            .padding(horizontal = 8.dp, vertical = 3.dp)
     )
 }

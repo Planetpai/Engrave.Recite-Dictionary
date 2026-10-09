@@ -18,6 +18,9 @@ object Destinations {
     const val PICK_FILE_BACKUP = "pick_file_backup"
     const val MISTAKES_DRILL = "mistakes_drill"
 
+    /** 使用指引：卡片手势说明，「我的」页进入。 */
+    const val TUTORIAL = "tutorial"
+
     /** 头像照片选择（应用内 MediaStore 浏览器，绕开手表上不可用的系统选图器）。 */
     const val AVATAR_PICKER = "avatar_picker"
 

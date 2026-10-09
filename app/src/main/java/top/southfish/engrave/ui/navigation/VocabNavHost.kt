@@ -37,6 +37,7 @@ import top.southfish.engrave.ui.search.WordDetailScreen
 import top.southfish.engrave.ui.settings.StudySettingsScreen
 import top.southfish.engrave.ui.stats.StatsScreen
 import top.southfish.engrave.ui.study.StudyScreen
+import top.southfish.engrave.ui.tutorial.TutorialScreen
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.firstOrNull
 
@@ -170,7 +171,8 @@ private fun AppNavHost(
                     onOpenSettings = { navController.navigate(Destinations.STUDY_SETTINGS) },
                     onOpenData = { navController.navigate(Destinations.DATA) },
                     onOpenMistakes = { navController.navigate(Destinations.MISTAKES) },
-                    onPickAvatar = { navController.navigate(Destinations.AVATAR_PICKER) }
+                    onPickAvatar = { navController.navigate(Destinations.AVATAR_PICKER) },
+                    onOpenTutorial = { navController.navigate(Destinations.TUTORIAL) }
                 )
             }
 
@@ -196,7 +198,10 @@ private fun AppNavHost(
 
             composable(Destinations.DETAIL) { entry ->
                 val term = entry.arguments?.getString("term").orEmpty()
-                WordDetailScreen(term = term)
+                WordDetailScreen(
+                    term = term,
+                    onOpenWord = { t -> navController.navigate(Destinations.detail(t)) }
+                )
             }
 
             composable(Destinations.BOOKS) {
@@ -229,6 +234,10 @@ private fun AppNavHost(
 
             composable(Destinations.STUDY_SETTINGS) {
                 StudySettingsScreen()
+            }
+
+            composable(Destinations.TUTORIAL) {
+                TutorialScreen()
             }
 
             composable(Destinations.DATA) {

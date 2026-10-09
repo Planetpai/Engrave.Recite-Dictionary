@@ -106,5 +106,6 @@ Engrave.Recite-Dictionary_Beta/
 
 - 本项目代码基于 [MIT License](LICENSE) 开源，欢迎自由使用、修改与分发，保留版权声明即可
 - 词典数据：[ECDICT](https://github.com/skywind3000/ECDICT)（MIT License）及公开例句整理
+- 短语数据：kajweb/dict 项目整理（有道考神词书）
 - 应用代码：本项目所有代码由 AI 生成，人工辅助验收
 - 内置词书顺序已随机打乱

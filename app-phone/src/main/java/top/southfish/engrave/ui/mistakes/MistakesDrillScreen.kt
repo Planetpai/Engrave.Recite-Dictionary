@@ -116,8 +116,6 @@ private fun DrillPhase(state: DrillUiState.Drill, viewModel: MistakesDrillViewMo
             } else {
                 null
             },
-            leftHint = "← 认识",
-            upHint = "↑ 不认识",
             modifier = Modifier
                 .weight(1f)
                 .padding(horizontal = 12.dp),

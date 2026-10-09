@@ -68,8 +68,6 @@ internal fun BrowsingPhase(state: StudyUiState.Browsing, viewModel: StudyViewMod
             onLongPress = viewModel::addCurrentToMistakes,
             onSwipeLeft = { viewModel.answer(Verdict.KNOWN) },
             onSwipeUp = { viewModel.answer(Verdict.UNKNOWN) },
-            leftHint = "← 已学过",
-            upHint = "↑ 不认识",
             undoReplay = state.undoReplay,
             modifier = Modifier
                 .weight(1f)
