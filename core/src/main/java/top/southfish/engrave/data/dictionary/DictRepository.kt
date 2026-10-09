@@ -3,6 +3,8 @@ package top.southfish.engrave.data.dictionary
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import top.southfish.engrave.domain.model.DictEntry
+import top.southfish.engrave.domain.model.ExchangeInfo
+import top.southfish.engrave.domain.model.PhraseEntry
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -57,11 +59,22 @@ class DictRepository(private val context: Context) {
     }
 
     private fun copyAssetIfNeeded() {
-        if (!dbFile.exists() || dbFile.length() == 0L) {
-            context.assets.open(ASSET_PATH).use { input ->
-                dbFile.outputStream().use { output -> input.copyTo(output) }
-            }
+        // 版本机制：assets 里的词典升级（如新增 phrase 表）后 DICT_VERSION 自增，
+        // 已拷贝到 filesDir 的旧库要删掉重拷。版本号落在旁边的 .ver 标记文件里。
+        val verFile = File(context.filesDir, "$DICT_FILE.ver")
+        val installedVer = if (dbFile.exists()) {
+            verFile.takeIf { it.exists() }?.readText()?.trim()?.toIntOrNull() ?: 0
+        } else {
+            -1
         }
+        if (installedVer >= DICT_VERSION && dbFile.length() > 0L) return
+        database?.takeIf { it.isOpen }?.close()
+        database = null
+        dbFile.delete()
+        context.assets.open(ASSET_PATH).use { input ->
+            dbFile.outputStream().use { output -> input.copyTo(output) }
+        }
+        verFile.writeText(DICT_VERSION.toString())
     }
 
     /**
@@ -120,6 +133,95 @@ class DictRepository(private val context: Context) {
     suspend fun lookup(term: String): DictEntry? = withContext(Dispatchers.IO) {
         val db = openDb()
         queryEntries(db, "word = ? COLLATE NOCASE LIMIT 1", arrayOf(term.trim())).firstOrNull()
+    }
+
+    /**
+     * 词形变化关联：解析词条 exchange 字段（ECDICT 格式 `p:过去式/d:过去分词/
+     * i:现在分词/3:三单/r:比较级/t:最高级/s:复数/0:原型/1:lemma变形码`）。
+     *
+     * 返回两类信息：
+     * - [ExchangeInfo.lemma]：若该词是变形词（exchange 含 0:xxx），其原型词；
+     * - [ExchangeInfo.forms]：exchange 里列出的各变形（带关系名）。
+     * 展示层负责把关系码翻成中文、把能查到的词做成可点跳转。
+     */
+    suspend fun exchangeInfo(term: String): ExchangeInfo? = withContext(Dispatchers.IO) {
+        val entry = lookup(term) ?: return@withContext null
+        parseExchange(entry.exchange)
+    }
+
+    /**
+     * 反向查原型：搜出所有 exchange 里标记 `0:<term>` 的变形词（如搜 die 得到
+     * dying/dies/died）。用于详情页「词形变化」栏列出该词的变形家族。
+     */
+    suspend fun inflectionsOf(lemma: String, limit: Int = 12): List<DictEntry> {
+        val t = lemma.trim().lowercase()
+        if (t.isEmpty()) return emptyList()
+        return withContext(Dispatchers.IO) {
+            val db = openDb()
+            queryEntries(
+                db,
+                "exchange LIKE ? ESCAPE '\\' AND word != ? COLLATE NOCASE ORDER BY frq DESC LIMIT ?",
+                arrayOf("%0:${escapeLike(t)}%", t, limit.toString())
+            )
+        }
+    }
+
+    /** 短语搜索：英文短语前缀/包含 + 中文释义包含，混合进搜索结果。 */
+    suspend fun searchPhrases(rawQuery: String, limit: Int = 8): List<PhraseEntry> {
+        val query = rawQuery.trim().lowercase()
+        if (query.length < 2) return emptyList()
+        return withContext(Dispatchers.IO) {
+            val db = openDb()
+            val isCjk = query.any { it.code > CJK_THRESHOLD }
+            val sql = if (isCjk) {
+                "zh LIKE ? ESCAPE '\\' ORDER BY length(phrase) LIMIT ?"
+            } else {
+                "phrase LIKE ? ESCAPE '\\' ORDER BY length(phrase) LIMIT ?"
+            }
+            val arg = if (isCjk) "%${escapeLike(query)}%" else "${escapeLike(query)}%"
+            val out = mutableListOf<PhraseEntry>()
+            db.query(
+                "phrase", arrayOf("phrase", "zh", "src_word"),
+                sql, arrayOf(arg, limit.toString()), null, null, null
+            ).use { cursor ->
+                while (cursor.moveToNext()) {
+                    out.add(
+                        PhraseEntry(
+                            phrase = cursor.getString(0) ?: continue,
+                            zh = cursor.getString(1) ?: "",
+                            srcWord = cursor.getString(2) ?: ""
+                        )
+                    )
+                }
+            }
+            out
+        }
+    }
+
+    /** 详情页「关联短语」：列出所有挂在该词下的短语（按长度排，短的在前面更常用）。 */
+    suspend fun relatedPhrases(term: String, limit: Int = 20): List<PhraseEntry> {
+        val t = term.trim().lowercase()
+        if (t.isEmpty()) return emptyList()
+        return withContext(Dispatchers.IO) {
+            val db = openDb()
+            val out = mutableListOf<PhraseEntry>()
+            db.query(
+                "phrase", arrayOf("phrase", "zh", "src_word"),
+                "src_word = ? COLLATE NOCASE ORDER BY length(phrase) LIMIT ?",
+                arrayOf(t, limit.toString()), null, null, null
+            ).use { cursor ->
+                while (cursor.moveToNext()) {
+                    out.add(
+                        PhraseEntry(
+                            phrase = cursor.getString(0) ?: continue,
+                            zh = cursor.getString(1) ?: "",
+                            srcWord = cursor.getString(2) ?: ""
+                        )
+                    )
+                }
+            }
+            out
+        }
     }
 
     /**
@@ -186,7 +288,8 @@ class DictRepository(private val context: Context) {
     companion object {
         const val DICT_FILE = "ecdict_core.db"
         const val ASSET_PATH = "dict/ecdict_core.db"
-        const val DICT_VERSION = 1
+        // 2: 新增 phrase 表（build_phrases.py）
+        const val DICT_VERSION = 2
 
         private const val DEFAULT_LIMIT = 30
 
@@ -196,12 +299,55 @@ class DictRepository(private val context: Context) {
         /** CJK 统一表意文字区起点，查询里出现就按中文释义搜索。 */
         private const val CJK_THRESHOLD = 0x2E80
 
-        /** 派生词的词根还原用的常见后缀，长的优先匹配。 */
-        private val SUFFIXES = listOf(
-            "ation", "ition", "sion", "tion", "ment", "ness", "ance", "ence",
-            "able", "ible", "ally", "ing", "ies", "ely", "ive", "ity", "ful",
-            "less", "est", "ed", "es", "er", "ly", "al", "ic", "ent", "ant",
-            "ion", "y", "s", "e"
+        /**
+         * ECDICT exchange 关系码 → 中文关系名。展示层拿这个把码翻成人话。
+         * p 过去式 / d 过去分词 / i 现在分词 / 3 三单 / r 比较级 / t 最高级 / s 复数。
+         */
+        val EXCHANGE_LABELS = linkedMapOf(
+            "p" to "过去式",
+            "d" to "过去分词",
+            "i" to "现在分词",
+            "3" to "第三人称单数",
+            "r" to "比较级",
+            "t" to "最高级",
+            "s" to "复数"
         )
+
+        /**
+         * 解析 exchange 字段为结构化信息。纯函数，便于 JVM 单测。
+         * 格式：`p:played/d:played/i:playing/3:plays/s:plays/0:play/1:xyz`
+         * - 0:xxx → 原型词（lemma）
+         * - 其它码 → 该词自身的变形（key=关系码, value=变形词）
+         * 注意 ECDICT 里变形词的 exchange（如 dying 的 `0:die/1:i`）用 1: 标关系码、
+         * 0: 标原型；原型词的 exchange（如 die）则列出各变形。两种都要能解。
+         */
+        fun parseExchange(exchange: String?): ExchangeInfo? {
+            if (exchange.isNullOrBlank()) return null
+            var lemma: String? = null
+            var selfRelation: String? = null
+            val forms = LinkedHashMap<String, String>()
+            for (part in exchange.split("/")) {
+                val idx = part.indexOf(':')
+                if (idx <= 0 || idx == part.length - 1) continue
+                val code = part.substring(0, idx).trim()
+                val value = part.substring(idx + 1).trim()
+                if (value.isEmpty()) continue
+                when (code) {
+                    "0" -> lemma = value
+                    "1" -> selfRelation = value  // 变形码（i/p/d/s…），该词相对原型的关系
+                    else -> if (EXCHANGE_LABELS.containsKey(code)) forms[code] = value
+                }
+            }
+            if (lemma == null && forms.isEmpty()) return null
+            return ExchangeInfo(lemma = lemma, selfRelation = selfRelation, forms = forms)
+        }
     }
+
+    /** 派生词的词根还原用的常见后缀，长的优先匹配。 */
+    private val SUFFIXES = listOf(
+        "ation", "ition", "sion", "tion", "ment", "ness", "ance", "ence",
+        "able", "ible", "ally", "ing", "ies", "ely", "ive", "ity", "ful",
+        "less", "est", "ed", "es", "er", "ly", "al", "ic", "ent", "ant",
+        "ion", "y", "s", "e"
+    )
 }

@@ -1,12 +1,20 @@
+@file:OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+
 package top.southfish.engrave.ui.search
 
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Column
+import androidx.compose.ui.Alignment
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -16,6 +24,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import top.southfish.engrave.ui.components.Chip
 import top.southfish.engrave.ui.components.ChipDefaults
 import top.southfish.engrave.ui.components.ListHeader
+import top.southfish.engrave.data.dictionary.DictRepository
 import androidx.compose.material3.MaterialTheme
 
 import androidx.compose.material3.Scaffold
@@ -33,6 +42,7 @@ import top.southfish.engrave.ui.vocabViewModel
 @Composable
 fun WordDetailScreen(
     term: String,
+    onOpenWord: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val viewModel = vocabViewModel<WordDetailViewModel> { container ->
@@ -47,8 +57,6 @@ fun WordDetailScreen(
     val state by viewModel.uiState.collectAsState()
     val listState = rememberLazyListState()
     rememberRotaryScrollable(listState)
-    // 在列表 DSL 外算好词形变换（DSL lambda 不是 composable 上下文）
-    val forms = rememberForms(state.entry?.exchange)
 
     Scaffold(
         modifier = modifier,
@@ -123,17 +131,61 @@ fun WordDetailScreen(
                     definitionSection("English", definitionEn.split("\n"))
                 }
 
-                if (forms.isNotEmpty()) {
-                    item { ListHeader { Text("词形变换") } }
-                    forms.forEach { (label, value) ->
+                // 词形变化：原型跳转（变形词） + 变形列表（原型词）。统一走 exchangeInfo。
+                val exchangeInfo = state.exchangeInfo
+                if (exchangeInfo != null) {
+                    val lemma = exchangeInfo.lemma
+                    // 变形词：显示「原型 xxx」可点跳转（原型与自身不同才显示）
+                    if (lemma != null && !lemma.equals(term, ignoreCase = true)) {
+                        item { ListHeader { Text("词形变化") } }
                         item {
-                            Text(
-                                text = "$label  $value",
-                                style = MaterialTheme.typography.bodyMedium,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 16.dp, vertical = 1.dp)
+                            ClickableFormRow(
+                                label = "原型",
+                                word = lemma,
+                                onClick = { onOpenWord(lemma) }
                             )
+                        }
+                        // 该词自身相对原型的关系（如 dying → die 的现在分词）
+                        exchangeInfo.selfRelation?.let { rel ->
+                            val relText = rel.map { DictRepository.EXCHANGE_LABELS[it.toString()] ?: it.toString() }
+                                .distinct().joinToString("、")
+                            item {
+                                Text(
+                                    text = "本词是 $lemma 的 $relText",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 16.dp, vertical = 1.dp)
+                                )
+                            }
+                        }
+                    }
+                    // 原型词：列出自身各变形（可点跳转）
+                    val forms = exchangeInfo.forms
+                    if (forms.isNotEmpty() && (lemma == null || lemma.equals(term, ignoreCase = true))) {
+                        if (lemma == null) item { ListHeader { Text("词形变化") } }
+                        forms.forEach { (code, word) ->
+                            item {
+                                ClickableFormRow(
+                                    label = DictRepository.EXCHANGE_LABELS[code] ?: code,
+                                    word = word,
+                                    onClick = { onOpenWord(word) }
+                                )
+                            }
+                        }
+                    }
+                    // 变形家族：反向查到的其它变形（如 die → dying/dies/died）
+                    if (state.inflections.isNotEmpty()) {
+                        item { ListHeader { Text("变形") } }
+                        state.inflections.forEach { infl ->
+                            item {
+                                ClickableFormRow(
+                                    label = "",
+                                    word = infl.term,
+                                    onClick = { onOpenWord(infl.term) }
+                                )
+                            }
                         }
                     }
                 }
@@ -177,7 +229,69 @@ fun WordDetailScreen(
                         }
                     }
                 }
+
+                // 关联短语：详情页最底部。长按条目跳转到该短语的「详情」（以短语为词查）。
+                if (state.phrases.isNotEmpty()) {
+                    item { ListHeader { Text("关联短语") } }
+                    state.phrases.forEach { p ->
+                        item {
+                            PhraseRow(
+                                phrase = p.phrase,
+                                zh = p.zh,
+                                onLongClick = { onOpenWord(p.phrase) }
+                            )
+                        }
+                    }
+                }
             }
+        }
+    }
+}
+
+/** 词形变化的可点行：「过去式  played」，点词跳转。 */
+@Composable
+private fun ClickableFormRow(label: String, word: String, onClick: () -> Unit) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 6.dp)
+    ) {
+        if (label.isNotBlank()) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        Text(
+            text = word,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.padding(start = if (label.isBlank()) 0.dp else 8.dp)
+        )
+    }
+}
+
+/** 关联短语行：短语 + 中文释义。长按跳转（避免和滚动/点详情冲突）。 */
+@Composable
+private fun PhraseRow(phrase: String, zh: String, onLongClick: () -> Unit) {
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .combinedClickable(onClick = {}, onLongClick = onLongClick)
+            .padding(horizontal = 16.dp, vertical = 6.dp)
+    ) {
+        Text(phrase, style = MaterialTheme.typography.bodyMedium)
+        if (zh.isNotBlank()) {
+            Text(
+                zh,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
 }
@@ -208,31 +322,3 @@ private fun LazyListScope.definitionSection(title: String, lines: List<String>) 
         }
     }
 }
-
-/**
- * exchange 列是 `d:did/p:done/3:does` 这种键值串，翻译成中文标签。
- *
- * ECDICT 键位约定：p=过去式、d=过去分词（p:went/d:gone）、i=现在分词、
- * 3=三单、r=比较级、t=最高级、s=复数、0=原形。特殊键 `1` 的值不是单词
- * 而是「本词是原形的哪种形式」的类别码（可多字母组合，如 dp=过去式+
- * 过去分词），出现该键的多为派生词（starting→0:start/1:i），直接渲染
- * 会露出原始编码（"1 i"/"1 p"），这里翻译成中文。
- */
-@Composable
-private fun rememberForms(exchange: String?): List<Pair<String, String>> =
-    remember(exchange) {
-        val labels = mapOf(
-            "0" to "原形", "p" to "过去式", "d" to "过去分词", "i" to "现在分词",
-            "3" to "三单", "r" to "比较级", "t" to "最高级", "s" to "复数"
-        )
-        exchange?.split("/")?.mapNotNull { part ->
-            val key = part.substringBefore(":").trim()
-            val value = part.substringAfter(":", "").trim()
-            if (value.isBlank()) null
-            else if (key == "1") {
-                // 类别码逐字母翻译，未知字母原样保留
-                val kinds = value.map { labels[it.toString()] ?: it.toString() }
-                "形式" to kinds.distinct().joinToString("、")
-            } else (labels[key] ?: key) to value
-        }.orEmpty()
-    }

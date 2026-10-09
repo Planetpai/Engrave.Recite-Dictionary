@@ -7,6 +7,7 @@ import top.southfish.engrave.data.local.dao.MistakeDao
 import top.southfish.engrave.data.local.dao.SearchHistoryDao
 import top.southfish.engrave.data.local.entity.SearchHistoryEntity
 import top.southfish.engrave.domain.model.DictEntry
+import top.southfish.engrave.domain.model.PhraseEntry
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -22,6 +23,8 @@ import kotlinx.coroutines.launch
 data class SearchUiState(
     val query: String = "",
     val results: List<DictEntry> = emptyList(),
+    /** 与单词混合呈现的短语结果（带「词组」标识）。 */
+    val phrases: List<PhraseEntry> = emptyList(),
     /** 查询为空时展示的历史记录。 */
     val history: List<SearchHistoryEntity> = emptyList()
 )
@@ -49,17 +52,18 @@ class SearchViewModel(
         debouncedQuery,
         debouncedQuery.flatMapLatest { q ->
             if (q.isBlank()) {
-                flowOf(emptyList())
+                flowOf(emptyList<DictEntry>() to emptyList<PhraseEntry>())
             } else {
                 // 本地 sqlite 查询，直接出结果；空列表就是“没有匹配”
-                flowOf(dictRepository.search(q))
+                flowOf(dictRepository.search(q) to dictRepository.searchPhrases(q))
             }
         },
         searchDao.observeRecent(HISTORY_LIMIT)
-    ) { q, results, history ->
+    ) { q, (results, phrases), history ->
         SearchUiState(
             query = q,
             results = results,
+            phrases = phrases,
             history = history
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), SearchUiState())

@@ -61,3 +61,21 @@ data class DictEntry(
     /** COCA 语料词频，越大越常用；0 表示语料库未收录。 */
     val frq: Int = 0
 )
+
+/** 词典里的一条短语（phrase 表）。srcWord 是挂载它的来源词。 */
+data class PhraseEntry(
+    val phrase: String,
+    val zh: String,
+    val srcWord: String
+)
+
+/**
+ * 一个词的原型/变形信息，由 DictRepository.parseExchange 从 exchange 字段解出。
+ * lemma：该词的原型（若该词本身是变形词）；selfRelation：该词相对原型的关系码；
+ * forms：该词自身列出的各变形（关系码 → 变形词）。
+ */
+data class ExchangeInfo(
+    val lemma: String? = null,
+    val selfRelation: String? = null,
+    val forms: Map<String, String> = emptyMap()
+)

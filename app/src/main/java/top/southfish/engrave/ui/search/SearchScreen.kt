@@ -105,7 +105,10 @@ fun SearchScreen(
                 } else {
                     ResultList(
                         results = state.results,
+                        phrases = state.phrases,
                         onOpen = { viewModel.openWord(it.term, onOpenWord) },
+                        // 短语跳到它的来源词详情（短语在词典里查不到独立词条）
+                        onOpenPhrase = { viewModel.openWord(it.srcWord, onOpenWord) },
                         listState = listState
                     )
                 }
@@ -274,7 +277,9 @@ private fun HistoryRow(item: SearchHistoryEntity, onOpen: () -> Unit) {
 @Composable
 private fun ResultList(
     results: List<top.southfish.engrave.domain.model.DictEntry>,
+    phrases: List<top.southfish.engrave.domain.model.PhraseEntry>,
     onOpen: (top.southfish.engrave.domain.model.DictEntry) -> Unit,
+    onOpenPhrase: (top.southfish.engrave.domain.model.PhraseEntry) -> Unit,
     listState: androidx.wear.compose.foundation.lazy.ScalingLazyListState
 ) {
     ScalingLazyColumn(
@@ -285,10 +290,10 @@ private fun ResultList(
             bottom = 16.dp
         )
     ) {
-        if (results.isEmpty()) {
+        if (results.isEmpty() && phrases.isEmpty()) {
             item {
                 Text(
-                    "没有相关单词",
+                    "没有相关单词或短语",
                     style = MaterialTheme.typography.body2,
                     color = MaterialTheme.colors.onSurfaceVariant,
                     textAlign = TextAlign.Center,
@@ -298,7 +303,7 @@ private fun ResultList(
                 )
             }
         }
-        items(results, key = { it.term }) { entry ->
+        items(results, key = { "w_" + it.term }) { entry ->
             Column(
                 Modifier
                     .fillMaxWidth()
@@ -327,6 +332,33 @@ private fun ResultList(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
+                }
+            }
+        }
+        // 短语区：与单词同列表呈现，带「词组」标识
+        if (phrases.isNotEmpty()) {
+            item {
+                ListHeader { Text("词组") }
+            }
+            items(phrases, key = { "p_" + it.phrase }) { p ->
+                Column(
+                    Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(MaterialTheme.colors.surface)
+                        .clickable { onOpenPhrase(p) }
+                        .padding(horizontal = 12.dp, vertical = 8.dp)
+                ) {
+                    Text(p.phrase, style = MaterialTheme.typography.body1)
+                    if (p.zh.isNotBlank()) {
+                        Text(
+                            p.zh,
+                            style = MaterialTheme.typography.caption2,
+                            color = MaterialTheme.colors.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
                 }
             }
         }
