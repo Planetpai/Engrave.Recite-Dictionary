@@ -9,7 +9,6 @@ import android.widget.EditText
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -25,7 +24,6 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -53,7 +51,6 @@ import top.southfish.engrave.ui.components.SwipeLeftRow
 import top.southfish.engrave.ui.components.rememberRotaryScrollHandler
 import top.southfish.engrave.ui.vocabViewModel
 import androidx.compose.foundation.gestures.scrollBy
-import kotlinx.coroutines.launch
 
 private val SearchFieldBackground = Color(0xFF1B202A)
 
@@ -309,7 +306,7 @@ private fun HistoryRow(item: SearchHistoryEntity, onOpen: () -> Unit) {
 }
 
 /**
- * 搜索结果双栏：左「单词」右「词组」，底部横向滑动或点标签切换。
+ * 搜索结果双栏：左「单词」右「词组」，左右滑切换（无标签栏省空间）。
  * 两栏各自持有滚动状态，切栏后回来位置保留。
  */
 @OptIn(ExperimentalFoundationApi::class)
@@ -323,22 +320,7 @@ private fun ResultTabs(
     onOpenWord: (SearchWordResult) -> Unit,
     onOpenPhrase: (top.southfish.engrave.domain.model.PhraseEntry) -> Unit
 ) {
-    val scope = rememberCoroutineScope()
     Column(Modifier.fillMaxSize()) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 2.dp),
-            horizontalArrangement = Arrangement.Center,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            TabLabel("单词", selected = pagerState.currentPage == 0) {
-                scope.launch { pagerState.animateScrollToPage(0) }
-            }
-            TabLabel("词组", selected = pagerState.currentPage == 1) {
-                scope.launch { pagerState.animateScrollToPage(1) }
-            }
-        }
         HorizontalPager(
             state = pagerState,
             modifier = Modifier.fillMaxSize()
@@ -350,19 +332,6 @@ private fun ResultTabs(
             }
         }
     }
-}
-
-@Composable
-private fun TabLabel(text: String, selected: Boolean, onClick: () -> Unit) {
-    Text(
-        text = text,
-        style = MaterialTheme.typography.caption1,
-        color = if (selected) MaterialTheme.colors.primary else MaterialTheme.colors.onSurfaceVariant,
-        modifier = Modifier
-            .clip(RoundedCornerShape(10.dp))
-            .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 4.dp)
-    )
 }
 
 @Composable
