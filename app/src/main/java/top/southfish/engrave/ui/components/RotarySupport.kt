@@ -51,7 +51,11 @@ fun rememberRotaryScrollHandler(
                 false
             }
         }
-        view.requestFocus()
+        // 根 View 拿到焦点才能收表圈事件；但如果焦点正停在文本输入控件上
+        // （搜索框打字中），抢焦点会把输入法会话打断、甚至把按键转发给列表项
+        // 造成误触跳转，这种情况下不抢。
+        val focusedEditor = view.findFocus()?.takeIf { it.onCheckIsTextEditor() }
+        if (focusedEditor == null) view.requestFocus()
 
         onDispose { active = false }
     }

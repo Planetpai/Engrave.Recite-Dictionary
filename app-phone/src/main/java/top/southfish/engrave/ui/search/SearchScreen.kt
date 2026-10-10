@@ -38,6 +38,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import top.southfish.engrave.ui.components.Chip
@@ -49,8 +50,9 @@ import androidx.compose.material3.Text
 
 import top.southfish.engrave.data.local.entity.SearchHistoryEntity
 import top.southfish.engrave.ui.components.SwipeLeftRow
-import top.southfish.engrave.ui.components.rememberRotaryScrollable
+import top.southfish.engrave.ui.components.rememberRotaryScrollHandler
 import top.southfish.engrave.ui.vocabViewModel
+import androidx.compose.foundation.gestures.scrollBy
 import kotlinx.coroutines.launch
 
 private val SearchFieldBackground = Color(0xFF1B202A)
@@ -61,6 +63,7 @@ private val SearchFieldBackground = Color(0xFF1B202A)
  * 模糊搜索（ECDICT 子集）按 相似档位 + 词频 排序；空查询时展示历史，
  * 历史从右往左滑 = 加入错题集（大纲），同时把这条历史清掉。
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun SearchScreen(
     onOpenWord: (String) -> Unit,
@@ -74,8 +77,23 @@ fun SearchScreen(
         )
     }
     val state by viewModel.uiState.collectAsState()
-    val listState = rememberLazyListState()
-    rememberRotaryScrollable(listState)
+    // 三个列表的滚动状态都提在页面级：表圈监听器全页只挂一个（挂在子列表里会在
+    // 输入首字母、历史→结果切换时重新 requestFocus，抢走输入框焦点导致误跳详情），
+    // 按当前区域把表圈事件路由给对应列表。
+    val historyListState = rememberLazyListState()
+    val wordListState = rememberLazyListState()
+    val phraseListState = rememberLazyListState()
+    val pagerState = rememberPagerState(pageCount = { 2 })
+    rememberRotaryScrollHandler { pixels ->
+        val target = if (state.query.isBlank()) {
+            historyListState
+        } else if (pagerState.currentPage == 0) {
+            wordListState
+        } else {
+            phraseListState
+        }
+        target.scrollBy(pixels)
+    }
     // 离开搜索页时确保键盘收起（自动弹出用了 SHOW_FORCED）
     val rootView = androidx.compose.ui.platform.LocalView.current
     androidx.compose.runtime.DisposableEffect(Unit) {
@@ -103,11 +121,14 @@ fun SearchScreen(
                         onOpen = { viewModel.openWord(it.term, onOpenWord) },
                         onAddMistake = viewModel::addMistakeFromHistory,
                         onClear = viewModel::clearHistory,
-                        listState = listState
+                        listState = historyListState
                     )
                 } else {
                     // 单词 / 词组 两栏，可左右滑动切换
                     ResultTabs(
+                        pagerState = pagerState,
+                        wordListState = wordListState,
+                        phraseListState = phraseListState,
                         wordResults = state.results,
                         phrases = state.phrases,
                         onOpenWord = { viewModel.openWord(it.clickTarget, onOpenWord) },
@@ -283,12 +304,14 @@ private fun HistoryRow(item: SearchHistoryEntity, onOpen: () -> Unit) {
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun ResultTabs(
+    pagerState: androidx.compose.foundation.pager.PagerState,
+    wordListState: LazyListState,
+    phraseListState: LazyListState,
     wordResults: List<SearchWordResult>,
     phrases: List<top.southfish.engrave.domain.model.PhraseEntry>,
     onOpenWord: (SearchWordResult) -> Unit,
     onOpenPhrase: (top.southfish.engrave.domain.model.PhraseEntry) -> Unit
 ) {
-    val pagerState = rememberPagerState(pageCount = { 2 })
     val scope = rememberCoroutineScope()
     Column(Modifier.fillMaxSize()) {
         Row(
@@ -310,9 +333,9 @@ private fun ResultTabs(
             modifier = Modifier.fillMaxSize()
         ) { page ->
             if (page == 0) {
-                WordResultList(wordResults, onOpenWord)
+                WordResultList(wordResults, onOpenWord, wordListState)
             } else {
-                PhraseResultList(phrases, onOpenPhrase)
+                PhraseResultList(phrases, onOpenPhrase, phraseListState)
             }
         }
     }
@@ -334,10 +357,9 @@ private fun TabLabel(text: String, selected: Boolean, onClick: () -> Unit) {
 @Composable
 private fun WordResultList(
     results: List<SearchWordResult>,
-    onOpen: (SearchWordResult) -> Unit
+    onOpen: (SearchWordResult) -> Unit,
+    listState: LazyListState
 ) {
-    val listState = rememberLazyListState()
-    rememberRotaryScrollable(listState)
     LazyColumn(
         state = listState,
         modifier = Modifier.fillMaxSize(),
@@ -404,10 +426,9 @@ private fun WordResultList(
 @Composable
 private fun PhraseResultList(
     phrases: List<top.southfish.engrave.domain.model.PhraseEntry>,
-    onOpen: (top.southfish.engrave.domain.model.PhraseEntry) -> Unit
+    onOpen: (top.southfish.engrave.domain.model.PhraseEntry) -> Unit,
+    listState: LazyListState
 ) {
-    val listState = rememberLazyListState()
-    rememberRotaryScrollable(listState)
     LazyColumn(
         state = listState,
         modifier = Modifier.fillMaxSize(),
