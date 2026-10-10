@@ -51,6 +51,12 @@ class WordDetailViewModel(
 
     private val termFlow = kotlinx.coroutines.flow.MutableStateFlow(term)
 
+    // 详情页被更深层路由（派生词/短语详情）覆盖时组合被销毁，rememberSaveable
+    // 在多层跳转后恢复不可靠；滚动位置存在 VM（挂在导航条目上，返回时仍存活）。
+    private var scrollPos: ListScrollPos = ListScrollPos()
+    fun scrollPos(): ListScrollPos = scrollPos
+    fun saveScrollPos(pos: ListScrollPos) { scrollPos = pos }
+
     val uiState: StateFlow<WordDetailUiState> = termFlow
         .flatMapLatest { t ->
             combine(

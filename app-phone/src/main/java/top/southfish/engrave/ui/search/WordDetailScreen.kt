@@ -53,8 +53,21 @@ fun WordDetailScreen(
         )
     }
     val state by viewModel.uiState.collectAsState()
-    val listState = rememberLazyListState()
+    // 初值取 VM 里存的现场：点派生词跳详情时本页组合被销毁，返回时靠它恢复滚动位置。
+    val savedPos = viewModel.scrollPos()
+    val listState = rememberLazyListState(
+        initialFirstVisibleItemIndex = savedPos.index,
+        initialFirstVisibleItemScrollOffset = savedPos.offset
+    )
     rememberRotaryScrollable(listState)
+    // 离开本页时把滚动位置存进 VM（VM 挂在导航条目上，返回时仍存活）
+    androidx.compose.runtime.DisposableEffect(Unit) {
+        onDispose {
+            viewModel.saveScrollPos(
+                ListScrollPos(listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset)
+            )
+        }
+    }
 
     Scaffold(
         modifier = modifier,
