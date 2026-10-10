@@ -112,19 +112,26 @@ fun WordDetailScreen(
             }
 
             val entry = state.entry
-            if (entry == null) {
-                item {
-                    Text(
-                        "词典加载中…",
-                        style = MaterialTheme.typography.body2,
-                        color = MaterialTheme.colors.onSurfaceVariant,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 16.dp)
-                    )
+            val phrase = state.phrase
+            when {
+                entry == null && phrase == null -> {
+                    item {
+                        Text(
+                            "词典加载中…",
+                            style = MaterialTheme.typography.body2,
+                            color = MaterialTheme.colors.onSurfaceVariant,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 16.dp)
+                        )
+                    }
                 }
-            } else {
+                // 短语详情：只有标题（上方）+ 中文释义，其余栏全部隐藏
+                entry == null && phrase != null -> {
+                    definitionSection("释义", phrase.zh.split("\n"))
+                }
+                entry != null -> {
                 // entry 来自 :core 模块，属性跨模块不能 smart cast，先落局部变量
                 val meaningZh = entry.meaningZh
                 val definitionEn = entry.definitionEn
@@ -230,6 +237,7 @@ fun WordDetailScreen(
                             )
                         }
                     }
+                }
                 }
             }
         }

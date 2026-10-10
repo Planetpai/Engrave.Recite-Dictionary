@@ -135,6 +135,27 @@ class DictRepository(private val context: Context) {
         queryEntries(db, "word = ? COLLATE NOCASE LIMIT 1", arrayOf(term.trim())).firstOrNull()
     }
 
+    /** 短语精确查询：详情页以短语全文（如 look forward to）为词头时用。 */
+    suspend fun lookupPhrase(phrase: String): PhraseEntry? {
+        val t = phrase.trim()
+        if (t.isEmpty()) return null
+        return withContext(Dispatchers.IO) {
+            val db = openDb()
+            db.query(
+                "phrase", arrayOf("phrase", "zh", "src_word"),
+                "phrase = ? COLLATE NOCASE LIMIT 1", arrayOf(t), null, null, null
+            ).use { cursor ->
+                if (cursor.moveToNext()) {
+                    PhraseEntry(
+                        phrase = cursor.getString(0) ?: return@use null,
+                        zh = cursor.getString(1) ?: "",
+                        srcWord = cursor.getString(2) ?: ""
+                    )
+                } else null
+            }
+        }
+    }
+
     /**
      * 词形变化关联：解析词条 exchange 字段（ECDICT 格式 `p:过去式/d:过去分词/
      * i:现在分词/3:三单/r:比较级/t:最高级/s:复数/0:原型/1:lemma变形码`）。

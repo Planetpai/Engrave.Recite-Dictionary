@@ -33,6 +33,8 @@ data class WordDetailUiState(
     val derivatives: List<DictEntry> = emptyList(),
     /** 词形变化信息：原型 + 各变形（由 exchange 解出）。 */
     val exchangeInfo: ExchangeInfo? = null,
+    /** 词头作为短语命中时的短语数据（单词查不到时按短语详情渲染）。 */
+    val phrase: PhraseEntry? = null,
     /** 关联短语（挂在该词下的短语）。 */
     val phrases: List<PhraseEntry> = emptyList()
 )
@@ -68,19 +70,23 @@ class WordDetailViewModel(
                         ttsEnabled = gate.ttsEnabled
                     )
                 )
-                // 词典 lookup 和词书查找互不依赖，并行跑（旧实现串行 await）
-                val (entry, bookWord) = kotlinx.coroutines.coroutineScope {
+                // 词典 lookup、短语精确查、词书查找互不依赖，并行跑
+                val (entry, phrase, bookWord) = kotlinx.coroutines.coroutineScope {
                     val entryDeferred = async {
                         runCatching { dictRepository.lookup(gate.term) }.getOrNull()
+                    }
+                    val phraseDeferred = async {
+                        runCatching { dictRepository.lookupPhrase(gate.term) }.getOrNull()
                     }
                     val bookDeferred = async {
                         runCatching { wordRepository.findWord(gate.term) }.getOrNull()
                     }
-                    entryDeferred.await() to bookDeferred.await()
+                    Triple(entryDeferred.await(), phraseDeferred.await(), bookDeferred.await())
                 }
                 emit(
                     WordDetailUiState(
                         entry = entry,
+                        phrase = phrase,
                         bookWord = bookWord,
                         inMistakes = gate.inMistakes,
                         display = gate.display,
@@ -97,6 +103,7 @@ class WordDetailViewModel(
                 emit(
                     WordDetailUiState(
                         entry = entry,
+                        phrase = phrase,
                         bookWord = bookWord,
                         inMistakes = gate.inMistakes,
                         display = gate.display,
@@ -119,7 +126,8 @@ class WordDetailViewModel(
                 mistakeDao.upsert(
                     top.southfish.engrave.data.local.entity.MistakeEntity(
                         term = term,
-                        meaning = entry?.meaningZh?.lineSequence()?.firstOrNull(),
+                        meaning = entry?.meaningZh?.lineSequence()?.firstOrNull()
+                            ?: uiState.value.phrase?.zh?.lineSequence()?.firstOrNull(),
                         phonetic = entry?.phonetic,
                         addedAt = System.currentTimeMillis()
                     )

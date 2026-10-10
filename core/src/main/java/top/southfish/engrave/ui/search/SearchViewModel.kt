@@ -86,16 +86,18 @@ class SearchViewModel(
         query.value = value
     }
 
-    /** 点开一个词：写历史再跳详情。 */
+    /** 点开一个词或短语：写历史再跳详情。 */
     fun openWord(term: String, onOpened: (String) -> Unit) {
         viewModelScope.launch {
             runCatching {
                 val entry = dictRepository.lookup(term)
+                val meaning = entry?.meaningZh?.lineSequence()?.firstOrNull()
+                    ?: dictRepository.lookupPhrase(term)?.zh?.lineSequence()?.firstOrNull()
                 searchDao.upsert(
                     SearchHistoryEntity(
                         term = entry?.term ?: term,
                         phonetic = entry?.phonetic,
-                        meaning = entry?.meaningZh?.lineSequence()?.firstOrNull(),
+                        meaning = meaning,
                         lookedUpAt = System.currentTimeMillis()
                     )
                 )
@@ -109,9 +111,11 @@ class SearchViewModel(
         viewModelScope.launch {
             runCatching {
                 val entry = dictRepository.lookup(term)
+                val meaning = entry?.meaningZh?.lineSequence()?.firstOrNull()
+                    ?: dictRepository.lookupPhrase(term)?.zh?.lineSequence()?.firstOrNull()
                 top.southfish.engrave.data.local.entity.MistakeEntity(
                     term = term,
-                    meaning = entry?.meaningZh?.lineSequence()?.firstOrNull(),
+                    meaning = meaning,
                     phonetic = entry?.phonetic,
                     addedAt = System.currentTimeMillis()
                 ).let { mistakeDao.upsert(it) }

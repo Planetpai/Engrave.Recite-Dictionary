@@ -6,6 +6,7 @@ import android.text.TextWatcher
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
 import android.widget.EditText
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -16,12 +17,15 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -47,6 +51,7 @@ import top.southfish.engrave.data.local.entity.SearchHistoryEntity
 import top.southfish.engrave.ui.components.SwipeLeftRow
 import top.southfish.engrave.ui.components.rememberRotaryScrollable
 import top.southfish.engrave.ui.vocabViewModel
+import kotlinx.coroutines.launch
 
 private val SearchFieldBackground = Color(0xFF1B202A)
 
@@ -101,13 +106,12 @@ fun SearchScreen(
                         listState = listState
                     )
                 } else {
-                    ResultList(
-                        results = state.results,
+                    // 单词 / 词组 两栏，可左右滑动切换
+                    ResultTabs(
+                        wordResults = state.results,
                         phrases = state.phrases,
-                        onOpen = { viewModel.openWord(it.clickTarget, onOpenWord) },
-                        // 短语跳到它的来源词详情（短语在词典里查不到独立词条）
-                        onOpenPhrase = { viewModel.openWord(it.srcWord, onOpenWord) },
-                        listState = listState
+                        onOpenWord = { viewModel.openWord(it.clickTarget, onOpenWord) },
+                        onOpenPhrase = { viewModel.openWord(it.phrase, onOpenWord) }
                     )
                 }
             }
@@ -272,26 +276,77 @@ private fun HistoryRow(item: SearchHistoryEntity, onOpen: () -> Unit) {
     }
 }
 
+/**
+ * 搜索结果双栏：左「单词」右「词组」，横向滑动或点标签切换。
+ * 两栏各自持有滚动状态，切栏后回来位置保留。
+ */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun ResultList(
-    results: List<SearchWordResult>,
+private fun ResultTabs(
+    wordResults: List<SearchWordResult>,
     phrases: List<top.southfish.engrave.domain.model.PhraseEntry>,
-    onOpen: (SearchWordResult) -> Unit,
-    onOpenPhrase: (top.southfish.engrave.domain.model.PhraseEntry) -> Unit,
-    listState: androidx.compose.foundation.lazy.LazyListState
+    onOpenWord: (SearchWordResult) -> Unit,
+    onOpenPhrase: (top.southfish.engrave.domain.model.PhraseEntry) -> Unit
 ) {
+    val pagerState = rememberPagerState(pageCount = { 2 })
+    val scope = rememberCoroutineScope()
+    Column(Modifier.fillMaxSize()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 2.dp),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            TabLabel("单词", selected = pagerState.currentPage == 0) {
+                scope.launch { pagerState.animateScrollToPage(0) }
+            }
+            TabLabel("词组", selected = pagerState.currentPage == 1) {
+                scope.launch { pagerState.animateScrollToPage(1) }
+            }
+        }
+        HorizontalPager(
+            state = pagerState,
+            modifier = Modifier.fillMaxSize()
+        ) { page ->
+            if (page == 0) {
+                WordResultList(wordResults, onOpenWord)
+            } else {
+                PhraseResultList(phrases, onOpenPhrase)
+            }
+        }
+    }
+}
+
+@Composable
+private fun TabLabel(text: String, selected: Boolean, onClick: () -> Unit) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.labelLarge,
+        color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier
+            .clip(RoundedCornerShape(10.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 4.dp)
+    )
+}
+
+@Composable
+private fun WordResultList(
+    results: List<SearchWordResult>,
+    onOpen: (SearchWordResult) -> Unit
+) {
+    val listState = rememberLazyListState()
+    rememberRotaryScrollable(listState)
     LazyColumn(
         state = listState,
         modifier = Modifier.fillMaxSize(),
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(
-            top = top.southfish.engrave.ui.components.timeTextPadding(),
-            bottom = 16.dp
-        )
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 16.dp)
     ) {
-        if (results.isEmpty() && phrases.isEmpty()) {
+        if (results.isEmpty()) {
             item {
                 Text(
-                    "没有相关单词或短语",
+                    "没有相关单词",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center,
@@ -343,30 +398,52 @@ private fun ResultList(
                 }
             }
         }
-        // 短语区：与单词同列表呈现，带「词组」标识
-        if (phrases.isNotEmpty()) {
+    }
+}
+
+@Composable
+private fun PhraseResultList(
+    phrases: List<top.southfish.engrave.domain.model.PhraseEntry>,
+    onOpen: (top.southfish.engrave.domain.model.PhraseEntry) -> Unit
+) {
+    val listState = rememberLazyListState()
+    rememberRotaryScrollable(listState)
+    LazyColumn(
+        state = listState,
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 16.dp)
+    ) {
+        if (phrases.isEmpty()) {
             item {
-                ListHeader { Text("词组") }
-            }
-            items(phrases, key = { "p_" + it.phrase }) { p ->
-                Column(
-                    Modifier
+                Text(
+                    "没有相关短语",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(MaterialTheme.colorScheme.surface)
-                        .clickable { onOpenPhrase(p) }
-                        .padding(horizontal = 12.dp, vertical = 8.dp)
-                ) {
-                    Text(p.phrase, style = MaterialTheme.typography.bodyLarge)
-                    if (p.zh.isNotBlank()) {
-                        Text(
-                            p.zh,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
+                        .padding(top = 20.dp)
+                )
+            }
+        }
+        items(phrases, key = { "p_" + it.phrase }) { p ->
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(MaterialTheme.colorScheme.surface)
+                    .clickable { onOpen(p) }
+                    .padding(horizontal = 12.dp, vertical = 8.dp)
+            ) {
+                Text(p.phrase, style = MaterialTheme.typography.bodyLarge)
+                if (p.zh.isNotBlank()) {
+                    Text(
+                        p.zh,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
                 }
             }
         }
