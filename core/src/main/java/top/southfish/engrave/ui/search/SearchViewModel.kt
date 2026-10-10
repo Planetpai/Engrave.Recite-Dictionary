@@ -22,11 +22,25 @@ import kotlinx.coroutines.launch
 
 data class SearchUiState(
     val query: String = "",
-    val results: List<DictEntry> = emptyList(),
+    val results: List<SearchWordResult> = emptyList(),
     /** 与单词混合呈现的短语结果（带「词组」标识）。 */
     val phrases: List<PhraseEntry> = emptyList(),
     /** 查询为空时展示的历史记录。 */
     val history: List<SearchHistoryEntity> = emptyList()
+)
+
+/**
+ * 搜索结果条目。一个词可能出两条：
+ * - 正常词条（inflectionHint=null）：词名 + 音标 + 释义首行，点击进本词详情；
+ * - 变形标注条（inflectionHint 非空）：同词名，无音标无释义，第二行灰色小字
+ *   标注原型关系（如「die 的现在分词」），点击进原型详情。
+ * 变形条的标注来自该词条的 exchange 字段，不依赖原型词条存在于词库。
+ */
+data class SearchWordResult(
+    val entry: DictEntry,
+    val inflectionHint: String? = null,
+    /** 点击跳转目标：正常条=本词，变形条=原型词。 */
+    val clickTarget: String = entry.term
 )
 
 @OptIn(ExperimentalCoroutinesApi::class, FlowPreview::class)
@@ -52,10 +66,10 @@ class SearchViewModel(
         debouncedQuery,
         debouncedQuery.flatMapLatest { q ->
             if (q.isBlank()) {
-                flowOf(emptyList<DictEntry>() to emptyList<PhraseEntry>())
+                flowOf(emptyList<SearchWordResult>() to emptyList<PhraseEntry>())
             } else {
                 // 本地 sqlite 查询，直接出结果；空列表就是“没有匹配”
-                flowOf(dictRepository.search(q) to dictRepository.searchPhrases(q))
+                flowOf(assembleWordResults(dictRepository.search(q)) to dictRepository.searchPhrases(q))
             }
         },
         searchDao.observeRecent(HISTORY_LIMIT)
@@ -108,6 +122,27 @@ class SearchViewModel(
 
     fun clearHistory() {
         viewModelScope.launch { searchDao.clear() }
+    }
+
+    /**
+     * 组装单词结果：每条词条原样保留；若它是变形词（exchange 含 0:原型 且
+     * 原型≠自身），紧随其后追加一条「变形标注条」——同词名、标注原型关系、
+     * 点击跳原型详情。搜原型词不带出变形词（原型 exchange 里没有 0: 段）。
+     */
+    private fun assembleWordResults(entries: List<DictEntry>): List<SearchWordResult> {
+        val out = ArrayList<SearchWordResult>(entries.size + 4)
+        for (entry in entries) {
+            out.add(SearchWordResult(entry))
+            val parsed = DictRepository.parseExchange(entry.exchange) ?: continue
+            val lemma = parsed.lemma ?: continue
+            if (lemma.equals(entry.term, ignoreCase = true)) continue
+            val relText = parsed.selfRelation
+                ?.map { DictRepository.EXCHANGE_LABELS[it.toString()] ?: it.toString() }
+                ?.distinct()?.joinToString("、")
+            val hint = if (relText.isNullOrBlank()) "$lemma 的变形" else "$lemma 的$relText"
+            out.add(SearchWordResult(entry, inflectionHint = hint, clickTarget = lemma))
+        }
+        return out
     }
 
     private companion object {

@@ -106,7 +106,7 @@ fun SearchScreen(
                     ResultList(
                         results = state.results,
                         phrases = state.phrases,
-                        onOpen = { viewModel.openWord(it.term, onOpenWord) },
+                        onOpen = { viewModel.openWord(it.clickTarget, onOpenWord) },
                         // 短语跳到它的来源词详情（短语在词典里查不到独立词条）
                         onOpenPhrase = { viewModel.openWord(it.srcWord, onOpenWord) },
                         listState = listState
@@ -276,9 +276,9 @@ private fun HistoryRow(item: SearchHistoryEntity, onOpen: () -> Unit) {
 
 @Composable
 private fun ResultList(
-    results: List<top.southfish.engrave.domain.model.DictEntry>,
+    results: List<SearchWordResult>,
     phrases: List<top.southfish.engrave.domain.model.PhraseEntry>,
-    onOpen: (top.southfish.engrave.domain.model.DictEntry) -> Unit,
+    onOpen: (SearchWordResult) -> Unit,
     onOpenPhrase: (top.southfish.engrave.domain.model.PhraseEntry) -> Unit,
     listState: androidx.wear.compose.foundation.lazy.ScalingLazyListState
 ) {
@@ -303,30 +303,40 @@ private fun ResultList(
                 )
             }
         }
-        items(results, key = { "w_" + it.term }) { entry ->
+        items(
+            results,
+            key = { (if (it.inflectionHint == null) "w_" else "i_") + it.entry.term + "_" + it.clickTarget }
+        ) { result ->
+            val entry = result.entry
             Column(
                 Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(14.dp))
                     .background(MaterialTheme.colors.surface)
-                    .clickable { onOpen(entry) }
+                    .clickable { onOpen(result) }
                     .padding(horizontal = 12.dp, vertical = 8.dp)
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(entry.term, style = MaterialTheme.typography.body1)
-                    entry.phonetic?.let {
-                        Text(
-                            "  $it",
-                            style = MaterialTheme.typography.caption2,
-                            color = MaterialTheme.colors.onSurfaceVariant,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
+                    // 变形标注条不显示音标
+                    if (result.inflectionHint == null) {
+                        entry.phonetic?.let {
+                            Text(
+                                "  $it",
+                                style = MaterialTheme.typography.caption2,
+                                color = MaterialTheme.colors.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
                     }
                 }
-                entry.meaningZh?.let {
+                // 变形标注条第二行是「die 的现在分词」式标注，正常条是释义首行
+                val secondLine = result.inflectionHint
+                    ?: entry.meaningZh?.let { it.lineSequence().firstOrNull() ?: it }
+                secondLine?.let {
                     Text(
-                        it.lineSequence().firstOrNull() ?: it,
+                        it,
                         style = MaterialTheme.typography.caption2,
                         color = MaterialTheme.colors.onSurfaceVariant,
                         maxLines = 1,

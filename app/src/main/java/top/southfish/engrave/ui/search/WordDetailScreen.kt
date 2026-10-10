@@ -150,19 +150,15 @@ fun WordDetailScreen(
                     definitionSection("English", definitionEn.split("\n"))
                 }
 
-                // 词形变化：原型跳转（变形词） + 变形列表（原型词）。统一走 exchangeInfo。
+                // 词形变化：原型行 + 自身关系说明 + 各变形列表。纯文本展示，不做跳转。
                 val exchangeInfo = state.exchangeInfo
                 if (exchangeInfo != null) {
                     val lemma = exchangeInfo.lemma
-                    // 变形词：显示「原型 xxx」可点跳转（原型与自身不同才显示）
+                    // 变形词：显示「原型 xxx」（原型与自身不同才显示）
                     if (lemma != null && !lemma.equals(term, ignoreCase = true)) {
                         item { ListHeader { Text("词形变化") } }
                         item {
-                            ClickableFormRow(
-                                label = "原型",
-                                word = lemma,
-                                onClick = { onOpenWord(lemma) }
-                            )
+                            FormTextRow(label = "原型", word = lemma)
                         }
                         // 该词自身相对原型的关系（如 dying → die 的现在分词）
                         exchangeInfo.selfRelation?.let { rel ->
@@ -180,29 +176,15 @@ fun WordDetailScreen(
                             }
                         }
                     }
-                    // 原型词：列出自身各变形（可点跳转）
+                    // 原型词：列出自身各变形
                     val forms = exchangeInfo.forms
                     if (forms.isNotEmpty() && (lemma == null || lemma.equals(term, ignoreCase = true))) {
                         if (lemma == null) item { ListHeader { Text("词形变化") } }
                         forms.forEach { (code, word) ->
                             item {
-                                ClickableFormRow(
+                                FormTextRow(
                                     label = DictRepository.EXCHANGE_LABELS[code] ?: code,
-                                    word = word,
-                                    onClick = { onOpenWord(word) }
-                                )
-                            }
-                        }
-                    }
-                    // 变形家族：反向查到的其它变形（如 die → dying/dies/died）
-                    if (state.inflections.isNotEmpty()) {
-                        item { ListHeader { Text("变形") } }
-                        state.inflections.forEach { infl ->
-                            item {
-                                ClickableFormRow(
-                                    label = "",
-                                    word = infl.term,
-                                    onClick = { onOpenWord(infl.term) }
+                                    word = word
                                 )
                             }
                         }
@@ -218,6 +200,8 @@ fun WordDetailScreen(
                                 style = MaterialTheme.typography.body2,
                                 modifier = Modifier
                                     .fillMaxWidth()
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .clickable { onOpenWord(derived.term) }
                                     .padding(horizontal = 16.dp, vertical = 1.dp)
                             )
                         }
@@ -267,15 +251,13 @@ fun WordDetailScreen(
     }
 }
 
-/** 词形变化的可点行：「过去式  played」，点词跳转。 */
+/** 词形变化的纯文本行：「过去式  played」，仅展示不跳转。 */
 @Composable
-private fun ClickableFormRow(label: String, word: String, onClick: () -> Unit) {
+private fun FormTextRow(label: String, word: String) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(10.dp))
-            .clickable(onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 6.dp)
     ) {
         if (label.isNotBlank()) {
@@ -288,7 +270,6 @@ private fun ClickableFormRow(label: String, word: String, onClick: () -> Unit) {
         Text(
             text = word,
             style = MaterialTheme.typography.body2,
-            color = MaterialTheme.colors.primary,
             modifier = Modifier.padding(start = if (label.isBlank()) 0.dp else 8.dp)
         )
     }

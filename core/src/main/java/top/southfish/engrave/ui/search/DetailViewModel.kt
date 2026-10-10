@@ -33,8 +33,6 @@ data class WordDetailUiState(
     val derivatives: List<DictEntry> = emptyList(),
     /** 词形变化信息：原型 + 各变形（由 exchange 解出）。 */
     val exchangeInfo: ExchangeInfo? = null,
-    /** 反向查到的变形家族（若该词是原型）。 */
-    val inflections: List<DictEntry> = emptyList(),
     /** 关联短语（挂在该词下的短语）。 */
     val phrases: List<PhraseEntry> = emptyList()
 )
@@ -91,11 +89,10 @@ class WordDetailViewModel(
                 )
                 val derivatives = runCatching { dictRepository.derivatives(gate.term) }.getOrDefault(emptyList())
                 // 词形变化（原型+变形）与关联短语并行，和主释义/派生词互不依赖
-                val (exchangeInfo, inflections, phrases) = kotlinx.coroutines.coroutineScope {
+                val (exchangeInfo, phrases) = kotlinx.coroutines.coroutineScope {
                     val exDeferred = async { runCatching { dictRepository.exchangeInfo(gate.term) }.getOrNull() }
-                    val inflDeferred = async { runCatching { dictRepository.inflectionsOf(gate.term) }.getOrDefault(emptyList()) }
                     val phrDeferred = async { runCatching { dictRepository.relatedPhrases(gate.term) }.getOrDefault(emptyList()) }
-                    Triple(exDeferred.await(), inflDeferred.await(), phrDeferred.await())
+                    exDeferred.await() to phrDeferred.await()
                 }
                 emit(
                     WordDetailUiState(
@@ -106,7 +103,6 @@ class WordDetailViewModel(
                         ttsEnabled = gate.ttsEnabled,
                         derivatives = derivatives,
                         exchangeInfo = exchangeInfo,
-                        inflections = inflections,
                         phrases = phrases
                     )
                 )

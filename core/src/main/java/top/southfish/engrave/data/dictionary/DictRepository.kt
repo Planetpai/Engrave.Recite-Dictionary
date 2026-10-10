@@ -149,23 +149,6 @@ class DictRepository(private val context: Context) {
         parseExchange(entry.exchange)
     }
 
-    /**
-     * 反向查原型：搜出所有 exchange 里标记 `0:<term>` 的变形词（如搜 die 得到
-     * dying/dies/died）。用于详情页「词形变化」栏列出该词的变形家族。
-     */
-    suspend fun inflectionsOf(lemma: String, limit: Int = 12): List<DictEntry> {
-        val t = lemma.trim().lowercase()
-        if (t.isEmpty()) return emptyList()
-        return withContext(Dispatchers.IO) {
-            val db = openDb()
-            queryEntries(
-                db,
-                "exchange LIKE ? ESCAPE '\\' AND word != ? COLLATE NOCASE ORDER BY frq DESC LIMIT ?",
-                arrayOf("%0:${escapeLike(t)}%", t, limit.toString())
-            )
-        }
-    }
-
     /** 短语搜索：英文短语前缀/包含 + 中文释义包含，混合进搜索结果。 */
     suspend fun searchPhrases(rawQuery: String, limit: Int = 8): List<PhraseEntry> {
         val query = rawQuery.trim().lowercase()
