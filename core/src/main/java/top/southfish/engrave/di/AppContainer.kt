@@ -69,6 +69,11 @@ class AppContainer(private val context: Context) {
     /** ECDICT 离线词典，搜索页和详情页用。 */
     val dictRepository: DictRepository by lazy { DictRepository(appContext) }
 
+    /** 系统 TTS 朗读，详情页喇叭按钮用。 */
+    val ttsSpeaker: top.southfish.engrave.data.tts.TtsSpeaker by lazy {
+        top.southfish.engrave.data.tts.TtsSpeaker(appContext)
+    }
+
     val backupManager: BackupManager by lazy {
         BackupManager(appContext, database, wordRepository, settingsRepository, sessionStore, seedDataProvider)
     }

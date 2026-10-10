@@ -41,6 +41,7 @@ class SettingsRepositoryImpl(context: Context) : SettingsRepository {
         val AVATAR_IMAGE_VERSION = intPreferencesKey("avatar_image_version")
         val ONBOARDING_DONE = booleanPreferencesKey("onboarding_done")
         val DEFINITION_DISPLAY = stringPreferencesKey("definition_display")
+        val TTS_ENABLED = booleanPreferencesKey("tts_enabled")
         val REMINDER_MINUTES = REMINDER_MINUTES_KEY
         val NAV_STACK = stringPreferencesKey("nav_stack")
     }
@@ -76,6 +77,9 @@ class SettingsRepositoryImpl(context: Context) : SettingsRepository {
         val raw = prefs[Keys.DEFINITION_DISPLAY]
         DefinitionDisplay.entries.firstOrNull { it.name == raw } ?: DefinitionDisplay.BOTH
     }
+
+    /** 单词发音默认开启：只有用户明确关掉后才静音。 */
+    override val ttsEnabled: Flow<Boolean> = dataStore.data.map { it[Keys.TTS_ENABLED] ?: true }
 
     override val reminderMinutes: Flow<Int?> = dataStore.data.map { it[Keys.REMINDER_MINUTES] }
 
@@ -126,6 +130,7 @@ class SettingsRepositoryImpl(context: Context) : SettingsRepository {
             prefs.remove(Keys.AVATAR_IMAGE_VERSION)
             prefs.remove(Keys.ONBOARDING_DONE)
             prefs.remove(Keys.DEFINITION_DISPLAY)
+            prefs.remove(Keys.TTS_ENABLED)
             prefs.remove(Keys.REMINDER_MINUTES)
             prefs.remove(Keys.NAV_STACK)
         }
@@ -137,6 +142,10 @@ class SettingsRepositoryImpl(context: Context) : SettingsRepository {
 
     override suspend fun setDefinitionDisplay(display: DefinitionDisplay) {
         dataStore.edit { it[Keys.DEFINITION_DISPLAY] = display.name }
+    }
+
+    override suspend fun setTtsEnabled(enabled: Boolean) {
+        dataStore.edit { it[Keys.TTS_ENABLED] = enabled }
     }
 
     override suspend fun setReminderMinutes(minutesOfDay: Int?) {

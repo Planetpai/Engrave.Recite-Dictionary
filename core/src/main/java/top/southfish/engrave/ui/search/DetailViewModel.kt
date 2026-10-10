@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import top.southfish.engrave.data.dictionary.DictRepository
 import top.southfish.engrave.data.local.dao.MistakeDao
+import top.southfish.engrave.data.tts.TtsSpeaker
 import top.southfish.engrave.domain.model.DefinitionDisplay
 import top.southfish.engrave.domain.model.DictEntry
 import top.southfish.engrave.domain.model.ExchangeInfo
@@ -26,6 +27,8 @@ data class WordDetailUiState(
     val bookWord: Word? = null,
     val inMistakes: Boolean = false,
     val display: DefinitionDisplay = DefinitionDisplay.BOTH,
+    /** 发音开关：关闭时详情页不显示喇叭按钮。 */
+    val ttsEnabled: Boolean = false,
     /** 同根派生词（different → differently / difference …），带各自释义。 */
     val derivatives: List<DictEntry> = emptyList(),
     /** 词形变化信息：原型 + 各变形（由 exchange 解出）。 */
@@ -42,7 +45,8 @@ class WordDetailViewModel(
     private val dictRepository: DictRepository,
     private val mistakeDao: MistakeDao,
     private val wordRepository: WordRepository,
-    private val settingsRepository: SettingsRepository
+    private val settingsRepository: SettingsRepository,
+    private val ttsSpeaker: TtsSpeaker
 ) : ViewModel() {
 
     private val termFlow = kotlinx.coroutines.flow.MutableStateFlow(term)
@@ -51,21 +55,28 @@ class WordDetailViewModel(
         .flatMapLatest { t ->
             combine(
                 settingsRepository.definitionDisplay,
+                settingsRepository.ttsEnabled,
                 mistakeDao.observeExists(t)
-            ) { display, inMistakes ->
-                Triple(display, inMistakes, t)
+            ) { display, tts, inMistakes ->
+                Gate(display, tts, inMistakes, t)
             }
         }
-        .flatMapLatest { (display, inMistakes, t) ->
+        .flatMapLatest { gate ->
             kotlinx.coroutines.flow.flow {
-                emit(WordDetailUiState(display = display, inMistakes = inMistakes))
+                emit(
+                    WordDetailUiState(
+                        display = gate.display,
+                        inMistakes = gate.inMistakes,
+                        ttsEnabled = gate.ttsEnabled
+                    )
+                )
                 // 词典 lookup 和词书查找互不依赖，并行跑（旧实现串行 await）
                 val (entry, bookWord) = kotlinx.coroutines.coroutineScope {
                     val entryDeferred = async {
-                        runCatching { dictRepository.lookup(t) }.getOrNull()
+                        runCatching { dictRepository.lookup(gate.term) }.getOrNull()
                     }
                     val bookDeferred = async {
-                        runCatching { wordRepository.findWord(t) }.getOrNull()
+                        runCatching { wordRepository.findWord(gate.term) }.getOrNull()
                     }
                     entryDeferred.await() to bookDeferred.await()
                 }
@@ -73,24 +84,26 @@ class WordDetailViewModel(
                     WordDetailUiState(
                         entry = entry,
                         bookWord = bookWord,
-                        inMistakes = inMistakes,
-                        display = display
+                        inMistakes = gate.inMistakes,
+                        display = gate.display,
+                        ttsEnabled = gate.ttsEnabled
                     )
                 )
-                val derivatives = runCatching { dictRepository.derivatives(t) }.getOrDefault(emptyList())
+                val derivatives = runCatching { dictRepository.derivatives(gate.term) }.getOrDefault(emptyList())
                 // 词形变化（原型+变形）与关联短语并行，和主释义/派生词互不依赖
                 val (exchangeInfo, inflections, phrases) = kotlinx.coroutines.coroutineScope {
-                    val exDeferred = async { runCatching { dictRepository.exchangeInfo(t) }.getOrNull() }
-                    val inflDeferred = async { runCatching { dictRepository.inflectionsOf(t) }.getOrDefault(emptyList()) }
-                    val phrDeferred = async { runCatching { dictRepository.relatedPhrases(t) }.getOrDefault(emptyList()) }
+                    val exDeferred = async { runCatching { dictRepository.exchangeInfo(gate.term) }.getOrNull() }
+                    val inflDeferred = async { runCatching { dictRepository.inflectionsOf(gate.term) }.getOrDefault(emptyList()) }
+                    val phrDeferred = async { runCatching { dictRepository.relatedPhrases(gate.term) }.getOrDefault(emptyList()) }
                     Triple(exDeferred.await(), inflDeferred.await(), phrDeferred.await())
                 }
                 emit(
                     WordDetailUiState(
                         entry = entry,
                         bookWord = bookWord,
-                        inMistakes = inMistakes,
-                        display = display,
+                        inMistakes = gate.inMistakes,
+                        display = gate.display,
+                        ttsEnabled = gate.ttsEnabled,
                         derivatives = derivatives,
                         exchangeInfo = exchangeInfo,
                         inflections = inflections,
@@ -118,4 +131,17 @@ class WordDetailViewModel(
             }
         }
     }
+
+    /** 朗读当前单词（系统 TTS）。 */
+    fun speakTerm() {
+        ttsSpeaker.speak(termFlow.value)
+    }
 }
+
+/** 详情页输入汇总：显示偏好 + 发音开关 + 错题状态 + 当前词头。 */
+private data class Gate(
+    val display: DefinitionDisplay,
+    val ttsEnabled: Boolean,
+    val inMistakes: Boolean,
+    val term: String
+)

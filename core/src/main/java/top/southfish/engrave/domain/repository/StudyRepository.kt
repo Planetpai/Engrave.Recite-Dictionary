@@ -86,6 +86,9 @@ interface SettingsRepository {
     /** 详情页释义显示偏好：只中文 / 只英文 / 中英都要。 */
     val definitionDisplay: Flow<DefinitionDisplay>
 
+    /** 单词发音开关：开启后详情页显示朗读喇叭。默认开。 */
+    val ttsEnabled: Flow<Boolean>
+
     /** 每日提醒时间（当天 0 点起的分钟数），null 表示关闭。 */
     val reminderMinutes: Flow<Int?>
 
@@ -113,6 +116,8 @@ interface SettingsRepository {
     suspend fun completeOnboarding()
 
     suspend fun setDefinitionDisplay(display: DefinitionDisplay)
+
+    suspend fun setTtsEnabled(enabled: Boolean)
 
     /** null 表示关闭提醒；调用方负责同步系统闹钟。 */
     suspend fun setReminderMinutes(minutesOfDay: Int?)

@@ -17,6 +17,8 @@ data class StudySettingsUiState(
     val dailyNewLimit: Int = StudyQueueConfig.DEFAULT.dailyNewLimit,
     val definitionDisplay: DefinitionDisplay = DefinitionDisplay.BOTH,
     val reminderMinutes: Int? = null,
+    /** 单词发音：开启时详情页显示朗读喇叭 */
+    val ttsEnabled: Boolean = true,
     /** DataStore 首次读取完成前为 false；加载前不能把默认值当用户输入回写 */
     val loaded: Boolean = false
 )
@@ -29,12 +31,14 @@ class StudySettingsViewModel(
     val uiState: StateFlow<StudySettingsUiState> = combine(
         settingsRepository.queueConfig,
         settingsRepository.definitionDisplay,
-        settingsRepository.reminderMinutes
-    ) { config, display, reminder ->
+        settingsRepository.reminderMinutes,
+        settingsRepository.ttsEnabled
+    ) { config, display, reminder, tts ->
         StudySettingsUiState(
             dailyNewLimit = config.dailyNewLimit,
             definitionDisplay = display,
             reminderMinutes = reminder,
+            ttsEnabled = tts,
             loaded = true
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), StudySettingsUiState())
@@ -53,6 +57,11 @@ class StudySettingsViewModel(
             }
             settingsRepository.setDefinitionDisplay(next)
         }
+    }
+
+    /** 单词发音开关：关掉后详情页不再显示喇叭。 */
+    fun toggleTts() {
+        viewModelScope.launch { settingsRepository.setTtsEnabled(!uiState.value.ttsEnabled) }
     }
 
     /** 开 / 关每日提醒；闹钟立即重排。 */

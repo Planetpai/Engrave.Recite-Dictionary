@@ -117,6 +117,7 @@ class StudyFlowTest {
         override val definitionDisplay =
             flowOf(top.southfish.engrave.domain.model.DefinitionDisplay.BOTH)
         override val reminderMinutes = flowOf<Int?>(null)
+        override val ttsEnabled = flowOf(true)
         override val navStack = flowOf<List<String>?>(null)
         override suspend fun setDailyNewLimit(limit: Int) = Unit
         override suspend fun setActiveBooks(bookIds: Set<Long>) = Unit
@@ -127,6 +128,7 @@ class StudyFlowTest {
         override suspend fun completeOnboarding() = Unit
         override suspend fun setDefinitionDisplay(display: top.southfish.engrave.domain.model.DefinitionDisplay) = Unit
         override suspend fun setReminderMinutes(minutesOfDay: Int?) = Unit
+        override suspend fun setTtsEnabled(enabled: Boolean) = Unit
         override suspend fun setNavStack(routes: List<String>?) = Unit
     }
 

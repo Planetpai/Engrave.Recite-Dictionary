@@ -44,7 +44,7 @@ import top.southfish.engrave.ui.vocabViewModel
 fun reminderLabel(minutes: Int): String = "%02d:%02d".format(minutes / 60, minutes % 60)
 
 /**
- * 背单词设置：每日新词（转轮拖选）、详情页释义显示、每日提醒（时/分转轮
+ * 背单词设置：每日新词（转轮拖选）、详情页释义显示、单词发音开关、每日提醒（时/分转轮
  * + 开关按钮）。复习不设上限，所以没有复习上限这一项了。
  */
 @Composable
@@ -217,6 +217,29 @@ private fun StudySettingsContent(
                         )
                     },
                     onClick = viewModel::cycleDefinitionDisplay,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp)
+                )
+            }
+
+            item {
+                Text(
+                    "单词发音",
+                    style = MaterialTheme.typography.caption2,
+                    color = MaterialTheme.colors.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 6.dp)
+                )
+            }
+            item {
+                Chip(
+                    label = {
+                        Text(if (state.ttsEnabled) "已开启 · 详情页显示喇叭" else "已关闭")
+                    },
+                    onClick = viewModel::toggleTts,
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp)

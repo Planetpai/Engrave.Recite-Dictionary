@@ -51,7 +51,8 @@ fun WordDetailScreen(
             dictRepository = container.dictRepository,
             mistakeDao = container.mistakeDao,
             wordRepository = container.wordRepository,
-            settingsRepository = container.settingsRepository
+            settingsRepository = container.settingsRepository,
+            ttsSpeaker = container.ttsSpeaker
         )
     }
     val state by viewModel.uiState.collectAsState()
@@ -89,6 +90,22 @@ fun WordDetailScreen(
                         textAlign = TextAlign.Center,
                         modifier = Modifier.fillMaxWidth()
                     )
+                }
+            }
+
+            // 朗读喇叭：设置里可关，关掉就不显示这个按钮
+            if (state.ttsEnabled) {
+                item {
+                    androidx.wear.compose.material.CompactButton(
+                        onClick = { viewModel.speakTerm() }
+                    ) {
+                        androidx.wear.compose.material.Icon(
+                            painter = androidx.compose.ui.res.painterResource(
+                                top.southfish.engrave.R.drawable.ic_speaker
+                            ),
+                            contentDescription = "朗读单词"
+                        )
+                    }
                 }
             }
 
