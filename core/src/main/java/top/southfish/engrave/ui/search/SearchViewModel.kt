@@ -29,6 +29,9 @@ data class SearchUiState(
     val history: List<SearchHistoryEntity> = emptyList()
 )
 
+/** 列表滚动位置（ScalingLazyColumn 用居中项，LazyColumn 用首项，含义兼容）。 */
+data class ListScrollPos(val index: Int = 0, val offset: Int = 0)
+
 /**
  * 搜索结果条目。一个词可能出两条：
  * - 正常词条（inflectionHint=null）：词名 + 音标 + 释义首行，点击进本词详情；
@@ -51,6 +54,23 @@ class SearchViewModel(
 ) : ViewModel() {
 
     private val query = MutableStateFlow("")
+
+    // 页面被详情页覆盖时组合会被 Wear 导航销毁，靠 rememberSaveable 在多层
+    // 跳转后恢复不可靠（列表位置归零）；滚动位置/分页存在 VM 里，返回时用
+    // 这些值重新初始化列表（输入框文字不恢复，原生 EditText 本就不保存）。
+    private val wordScrollPos = MutableStateFlow(ListScrollPos())
+    private val phraseScrollPos = MutableStateFlow(ListScrollPos())
+    private val historyScrollPos = MutableStateFlow(ListScrollPos())
+    private val pagerPage = MutableStateFlow(0)
+
+    fun wordPos(): ListScrollPos = wordScrollPos.value
+    fun phrasePos(): ListScrollPos = phraseScrollPos.value
+    fun historyPos(): ListScrollPos = historyScrollPos.value
+    fun pagerPage(): Int = pagerPage.value
+    fun saveWordPos(pos: ListScrollPos) { wordScrollPos.value = pos }
+    fun savePhrasePos(pos: ListScrollPos) { phraseScrollPos.value = pos }
+    fun saveHistoryPos(pos: ListScrollPos) { historyScrollPos.value = pos }
+    fun savePagerPage(page: Int) { pagerPage.value = page }
 
     init {
         // 词典子集首次要从 assets 拷到 filesDir，进页面就备好，输入时零等待
@@ -84,7 +104,16 @@ class SearchViewModel(
 
     fun onQueryChange(value: String) {
         query.value = value
+        if (value.isBlank()) {
+            // 回到历史态 = 下一次新搜索，结果页位置/分页清零
+            wordScrollPos.value = ListScrollPos()
+            phraseScrollPos.value = ListScrollPos()
+            pagerPage.value = 0
+        }
     }
+
+    /** 当前是否处于结果模式（查询非空），离开页面时据此决定是否存结果列表位置。 */
+    fun isSearching(): Boolean = query.value.isNotBlank()
 
     /** 点开一个词或短语：写历史再跳详情。 */
     fun openWord(term: String, onOpened: (String) -> Unit) {

@@ -77,10 +77,26 @@ fun SearchScreen(
     // 三个列表的滚动状态都提在页面级：表圈监听器全页只挂一个（挂在子列表里会在
     // 输入首字母、历史→结果切换时重新 requestFocus，抢走输入框焦点导致误跳详情），
     // 按当前区域把表圈事件路由给对应列表。
-    val historyListState = rememberLazyListState()
-    val wordListState = rememberLazyListState()
-    val phraseListState = rememberLazyListState()
-    val pagerState = rememberPagerState(pageCount = { 2 })
+    // 初值取 VM 里存的现场：跳详情时本页组合被销毁，返回时靠这些值恢复滚动位置。
+    val historyPos = viewModel.historyPos()
+    val wordPos = viewModel.wordPos()
+    val phrasePos = viewModel.phrasePos()
+    val historyListState = rememberLazyListState(
+        initialFirstVisibleItemIndex = historyPos.index,
+        initialFirstVisibleItemScrollOffset = historyPos.offset
+    )
+    val wordListState = rememberLazyListState(
+        initialFirstVisibleItemIndex = wordPos.index,
+        initialFirstVisibleItemScrollOffset = wordPos.offset
+    )
+    val phraseListState = rememberLazyListState(
+        initialFirstVisibleItemIndex = phrasePos.index,
+        initialFirstVisibleItemScrollOffset = phrasePos.offset
+    )
+    val pagerState = rememberPagerState(
+        initialPage = viewModel.pagerPage(),
+        pageCount = { 2 }
+    )
     rememberRotaryScrollHandler { pixels ->
         val target = if (state.query.isBlank()) {
             historyListState
@@ -91,12 +107,26 @@ fun SearchScreen(
         }
         target.scrollBy(pixels)
     }
-    // 离开搜索页时确保键盘收起（自动弹出用了 SHOW_FORCED）
+    // 离开搜索页时确保键盘收起（自动弹出用了 SHOW_FORCED），并把当前
+    // 滚动位置/分页存进 VM —— 跳详情再返回时本页组合重建，靠它恢复现场。
     val rootView = androidx.compose.ui.platform.LocalView.current
     androidx.compose.runtime.DisposableEffect(Unit) {
         onDispose {
             val imm = rootView.context.getSystemService(InputMethodManager::class.java)
             imm?.hideSoftInputFromWindow(rootView.windowToken, 0)
+            if (viewModel.isSearching()) {
+                viewModel.savePagerPage(pagerState.currentPage)
+                viewModel.saveWordPos(
+                    ListScrollPos(wordListState.firstVisibleItemIndex, wordListState.firstVisibleItemScrollOffset)
+                )
+                viewModel.savePhrasePos(
+                    ListScrollPos(phraseListState.firstVisibleItemIndex, phraseListState.firstVisibleItemScrollOffset)
+                )
+            } else {
+                viewModel.saveHistoryPos(
+                    ListScrollPos(historyListState.firstVisibleItemIndex, historyListState.firstVisibleItemScrollOffset)
+                )
+            }
         }
     }
 
