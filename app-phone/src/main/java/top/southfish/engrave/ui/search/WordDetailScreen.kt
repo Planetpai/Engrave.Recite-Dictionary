@@ -1,12 +1,9 @@
-@file:OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
-
 package top.southfish.engrave.ui.search
 
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Column
 import androidx.compose.ui.Alignment
@@ -71,11 +68,15 @@ fun WordDetailScreen(
             )
         ) {
             item {
+                // 点击单词标题发音（设置里关掉发音开关后不可点）
                 Text(
                     text = term,
                     style = MaterialTheme.typography.titleLarge,
                     textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .clickable(enabled = state.ttsEnabled) { viewModel.speakTerm() }
                 )
             }
 
@@ -88,28 +89,6 @@ fun WordDetailScreen(
                         textAlign = TextAlign.Center,
                         modifier = Modifier.fillMaxWidth()
                     )
-                }
-            }
-
-            // 朗读喇叭：设置里可关，关掉就不显示这个按钮
-            if (state.ttsEnabled) {
-                item {
-                    // LazyColumn 默认左对齐，包一层 Box 让喇叭居中
-                    androidx.compose.foundation.layout.Box(
-                        modifier = Modifier.fillMaxWidth(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        androidx.compose.material3.IconButton(
-                            onClick = { viewModel.speakTerm() }
-                        ) {
-                            androidx.compose.material3.Icon(
-                                painter = androidx.compose.ui.res.painterResource(
-                                    top.southfish.engrave.phone.R.drawable.ic_speaker
-                                ),
-                                contentDescription = "朗读单词"
-                            )
-                        }
-                    }
                 }
             }
 
@@ -237,7 +216,7 @@ fun WordDetailScreen(
                     }
                 }
 
-                // 关联短语：详情页最底部。长按条目跳转到该短语的「详情」（以短语为词查）。
+                // 关联短语：详情页最底部。点击条目跳转到该短语的「详情」（以短语为词查）。
                 if (state.phrases.isNotEmpty()) {
                     item { ListHeader { Text("关联短语") } }
                     state.phrases.forEach { p ->
@@ -245,7 +224,7 @@ fun WordDetailScreen(
                             PhraseRow(
                                 phrase = p.phrase,
                                 zh = p.zh,
-                                onLongClick = { onOpenWord(p.phrase) }
+                                onClick = { onOpenWord(p.phrase) }
                             )
                         }
                     }
@@ -262,7 +241,7 @@ private fun FormTextRow(label: String, word: String) {
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 6.dp)
+            .padding(horizontal = 16.dp, vertical = 1.dp)
     ) {
         if (label.isNotBlank()) {
             Text(
@@ -279,14 +258,14 @@ private fun FormTextRow(label: String, word: String) {
     }
 }
 
-/** 关联短语行：短语 + 中文释义。长按跳转（避免和滚动/点详情冲突）。 */
+/** 关联短语行：短语 + 中文释义。点击跳转该短语的详情。 */
 @Composable
-private fun PhraseRow(phrase: String, zh: String, onLongClick: () -> Unit) {
+private fun PhraseRow(phrase: String, zh: String, onClick: () -> Unit) {
     Column(
         Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(10.dp))
-            .combinedClickable(onClick = {}, onLongClick = onLongClick)
+            .clickable(onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 6.dp)
     ) {
         Text(phrase, style = MaterialTheme.typography.bodyMedium)

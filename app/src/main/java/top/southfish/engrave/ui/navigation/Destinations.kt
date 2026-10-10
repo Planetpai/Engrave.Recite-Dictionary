@@ -24,7 +24,15 @@ object Destinations {
     /** 头像照片选择（应用内 MediaStore 浏览器，绕开手表上不可用的系统选图器）。 */
     const val AVATAR_PICKER = "avatar_picker"
 
-    /** 词详情，携带词头。 */
+    /**
+     * 词详情，携带词头。DETAIL 与 DETAIL_ALT 内容相同、成对交替使用：
+     * wear-compose-navigation 1.2.1 的 SwipeDismissableNavHost 用路由 pattern
+     * 作 SwipeToDismissBox 的 key，同 pattern 相邻入栈（详情→详情）时侧滑
+     * 返回会状态错乱连弹两层。详情页之间跳转时交替使用两个 pattern，
+     * 保证相邻页 key 不同，侧滑逐层正常返回。
+     */
     const val DETAIL = "detail/{term}"
+    const val DETAIL_ALT = "detail2/{term}"
     fun detail(term: String) = "detail/${Uri.encode(term)}"
+    fun detailAlt(term: String) = "detail2/${Uri.encode(term)}"
 }

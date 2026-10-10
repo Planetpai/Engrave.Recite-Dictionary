@@ -83,8 +83,9 @@ fun VocabNavHost(
 /** 把栈条目还原成可跳转的路由串（detail/{term} 用实际词头拼回去）。 */
 private fun NavBackStackEntry.toRouteString(): String {
     val pattern = destination.route ?: return Destinations.HOME
-    if (pattern == Destinations.DETAIL) {
-        return Destinations.detail(arguments?.getString("term").orEmpty())
+    when (pattern) {
+        Destinations.DETAIL -> return Destinations.detail(arguments?.getString("term").orEmpty())
+        Destinations.DETAIL_ALT -> return Destinations.detailAlt(arguments?.getString("term").orEmpty())
     }
     return pattern
 }
@@ -197,6 +198,15 @@ private fun AppNavHost(
             }
 
             composable(Destinations.DETAIL) { entry ->
+                val term = entry.arguments?.getString("term").orEmpty()
+                WordDetailScreen(
+                    term = term,
+                    // 详情→详情用 DETAIL_ALT，保证相邻页 pattern 不同（见 Destinations 注释）
+                    onOpenWord = { t -> navController.navigate(Destinations.detailAlt(t)) }
+                )
+            }
+
+            composable(Destinations.DETAIL_ALT) { entry ->
                 val term = entry.arguments?.getString("term").orEmpty()
                 WordDetailScreen(
                     term = term,
