@@ -63,9 +63,14 @@ fun WordDetailScreen(
     // 离开本页时把滚动位置存进 VM（VM 挂在导航条目上，返回时仍存活）
     androidx.compose.runtime.DisposableEffect(Unit) {
         onDispose {
-            viewModel.saveScrollPos(
-                ListScrollPos(listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset)
-            )
+            // 空态帧（数据重载瞬间）列表 item 骤减、首项索引会被钳到顶部，
+            // 此刻离场不能把污染后的位置写回 VM，保留跳转前存下的现场。
+            val latest = viewModel.uiState.value
+            if (latest.entry != null || latest.phrase != null) {
+                viewModel.saveScrollPos(
+                    ListScrollPos(listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset)
+                )
+            }
         }
     }
 

@@ -17,6 +17,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
@@ -55,7 +56,9 @@ class WordDetailViewModel(
     // 在多层跳转后恢复不可靠；滚动位置存在 VM（挂在导航条目上，返回时仍存活）。
     private var scrollPos: ListScrollPos = ListScrollPos()
     fun scrollPos(): ListScrollPos = scrollPos
-    fun saveScrollPos(pos: ListScrollPos) { scrollPos = pos }
+    fun saveScrollPos(pos: ListScrollPos) {
+        scrollPos = pos
+    }
 
     val uiState: StateFlow<WordDetailUiState> = termFlow
         .flatMapLatest { t ->
@@ -67,6 +70,10 @@ class WordDetailViewModel(
                 Gate(display, tts, inMistakes, t)
             }
         }
+        // 导航栈记录器每次跳转都写同一个 DataStore，会让上面的偏好流重发
+        // 相同值；Gate 不变就绝不能重启下面的词典加载流——否则先 emit 空态、
+        // 列表 item 骤减，ScalingLazyColumn 会把已恢复的居中项钳回顶部。
+        .distinctUntilChanged()
         .flatMapLatest { gate ->
             kotlinx.coroutines.flow.flow {
                 emit(
@@ -121,7 +128,13 @@ class WordDetailViewModel(
                 )
             }
         }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), WordDetailUiState())
+        // 必须用 Eagerly 而不是 WhileSubscribed：详情页被更深路由覆盖时组合
+        // 销毁、订阅中断，一旦超时整条冷流重启，新流的第一个 Gate 没有历史
+        // 可比、distinctUntilChanged 挡不住，内层仍会先 emit 空态、列表位置
+        // 被钳回顶部。Eagerly 让链条随 VM（=导航条目）存活，配合上面的
+        // distinctUntilChanged（挡 DataStore 写导航栈引发的相同 Gate 重放）
+        // 共同保证详情数据不闪空；条目出栈时 viewModelScope 自动取消，无泄漏。
+        .stateIn(viewModelScope, SharingStarted.Eagerly, WordDetailUiState())
 
     fun toggleMistake(term: String) {
         viewModelScope.launch {
