@@ -44,8 +44,9 @@ private enum class TapOutcome { TAP, LONG_PRESS, DRAGGED_AWAY, CANCELLED }
  * - 不能和独立的 detectTapGestures / detectDragGestures 并存再靠事件消费
  *   仲裁：同一节点上多个检测器各跑各的，框架自己的点击/拖拽检测会消费
  *   down/up 事件，外层检测器用 waitForUpOrCancellation 会把普通点击也误判成
- *   「被抢走」。这里自己按 touchSlop 判定是否拖走、按时长判定长按，
- *   只读取事件的原始位置和状态，完全不看消费标记。
+ *   「被抢走」。这里自己按 touchSlop 判定是否拖走、按时长判定长按。
+ *   唯一看的消费标记来自卡面子组件（拼写格等）：down 或中途事件被子组件
+ *   消费说明这次手势是给子组件的，卡片放弃判定，不抢点击。
  *
  * 拖走或长按时点击逻辑不做任何响应。
  */
@@ -79,6 +80,9 @@ internal suspend fun PointerInputScope.detectTapAndLongPress(
             val change = event.changes.firstOrNull { it.id == down.id }
                 ?: return TapOutcome.CANCELLED
 
+            // 子组件（如拼写卡的字母格）消费了事件：这不是给卡片的手势，放弃判定
+            if (change.isConsumed) return TapOutcome.CANCELLED
+
             // 位移超过 touch slop：这是拖动手势，交给拖拽检测，点击退出
             val moved = change.position - start
             if (abs(moved.x) > slop || abs(moved.y) > slop) {
@@ -105,7 +109,8 @@ internal suspend fun PointerInputScope.detectTapAndLongPress(
     }
 
     awaitEachGesture {
-        val down = awaitFirstDown(requireUnconsumed = false)
+        // down 已被子组件消费（拼写格等）则整段手势不启动，卡片不抢子节点的点击
+        val down = awaitFirstDown(requireUnconsumed = true)
         val outcome = awaitPressEnd(down)
         if (outcome == TapOutcome.TAP) onTap()
     }
