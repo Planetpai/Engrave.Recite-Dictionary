@@ -39,13 +39,13 @@
 | 📚 词书管理      | 内置初中/高中词书；支持从设备任意文件夹导入自制备 JSON 词书，可导出备份（）[词典工具](https://github.com/SouthFishowo/Engrave_DictionaryConverter) |
 | 👤 个人资料      | 头像（长按从相册选）、昵称（长按编辑）、连续天数与学习统计                                                                                |
 
-平台与版本：Wear OS · Kotlin + Jetpack Compose · 包名 `top.southfish.engrave` · 版本 `0.2beta.3`
+平台与版本：Wear OS · Kotlin + Jetpack Compose · 包名 `top.southfish.engrave` · 版本 `0.3beta.1`
 
 ---
 
 ## 更新日志
 
-### v0.2beta.4（开发中）
+### v0.3beta.1
 
 - **设置页重新分类**：「详情页释义」「单词发音」从背单词设置页迁出，收进「我的」页新增的**「其他设置」**页；背单词设置只保留每日新词与每日提醒。
 - **单词发音逻辑调整**：该开关现在**仅控制学习卡片露出英文词头时是否自动朗读**（浏览选词、背词测试的英文面；拼写卡不读），**默认关闭**；单词/短语详情页点击标题发音不再受开关限制，始终可用。
