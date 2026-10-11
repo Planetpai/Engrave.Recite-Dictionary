@@ -14,8 +14,8 @@ android {
         minSdk 26
         // 29：与 Wear 版一致，传统存储读词书文件，无需 SAF
         targetSdk 29
-        versionCode 1
-        versionName "0.1beta.1"
+        versionCode 2
+        versionName "0.3beta.1"
     }
 
     buildTypes {
