@@ -152,6 +152,8 @@ SM-2 变体：`Grade`（AGAIN/HARD/GOOD/EASY）→ 下次间隔与熟练度。�
 
 - 续批不重复：`getNewItems` 用 `browseSeen` 排除本会话已见词。
 - 卡片外双击撤销（`CardGestures.detectOutsideDoubleTap(excludedRect)`）：`StudyCardDeck` 在卡片之下铺一层全屏 `pointerInput`，按卡片宽高比（0.88/0.78）居中算出卡片矩形，两次 down 都在矩形外、且都在 `doubleTapTimeoutMillis` 窗口内抬起（无拖拽/取消）才触发；卡片内点击归卡面检测器（单击翻面），两套手势互不干扰。
+- **拼写面板点字母误翻面修复（2026-10-11）**：卡面手势改用 `awaitFirstDown(requireUnconsumed = true)` 并在识别前检查事件是否已被消费；拼写面板字母点击被其内部消费后不再穿透触发翻面。双端 `CardGestures.kt` 同改。
+- **卡片自动发音（2026-10-11）**：`StudyViewModel.ttsEnabled: StateFlow<Boolean>`（读 SettingsRepository，WhileSubscribed 5000）；触发点在 UI 层（`rememberAppContainer().ttsSpeaker`）：浏览页 `LaunchedEffect(word.id, ttsEnabled)`；测试页 `LaunchedEffect(card.uid, card.flipped, ttsEnabled)`——EN_TO_ZH 正面（!flipped）与 ZH_TO_EN 背面（flipped）露出词头时读，翻面回去不重读，**SPELLING 永不发音**（听写作弊）。
 - 纵轴滑动只动顶卡（>52dp 飞出，否则弹簧回零）；下层叠卡 `DeckBehind` **固定不动**。
 - 测试阶段必须先 tap 翻面才能滑动评分（防误滑，有意设计）。
 - 自动化手势：快滑 ~300ms；慢拖 >~400ms 会被长按加错题劫持。
@@ -168,10 +170,20 @@ SM-2 变体：`Grade`（AGAIN/HARD/GOOD/EASY）→ 下次间隔与熟练度。�
 
 见 §1.5。视口中心检测 + 文本实测宽度触发区 + 停稳才回调。
 
-### 6.5 设置页（`ui/settings/StudySettingsScreen.kt`）
+### 6.5 设置页（`ui/settings/`，2026-10-11 拆分）
 
-- **加载门禁**：`loaded=false` 时设置主体 `StudySettingsContent` 整个不组合——转轮 `remember { mutableStateOf(默认值) }` 若在 DataStore 读到前组合，auto-save 会把默认值静默回写、重置提醒时间（实测踩过）。注意：**只在 Scaffold content lambda 里 gate 是不够的**，必须保证轮子状态声明也在 loaded 之后。
+两个页面**共用同一个** `StudySettingsViewModel`/`StudySettingsUiState`（VM 在 init 时做 TTS 检测，两个页面各持有自己的 VM 实例，无共享状态问题）：
+
+- `StudySettingsScreen`（背单词设置）：只剩每日新词（NumberWheel）+ 每日提醒（时/分双转轮 + 开关按钮）。
+- `OtherSettingsScreen`（其他设置，「我的」页菜单新入口，路由 `OTHER_SETTINGS="other_settings"`）：详情页释义（三态循环 Chip）+ 单词发音开关。DataStore 键 `definition_display` / `tts_enabled` 拆分时未改名，老配置平滑兼容。
+- **加载门禁**（两页同款）：`loaded=false` 时页面主体整个不组合——转轮 `remember { mutableStateOf(默认值) }` 若在 DataStore 读到前组合，auto-save 会把默认值静默回写、重置提醒时间（实测踩过）。注意：**只在 Scaffold content lambda 里 gate 是不够的**，必须保证轮子状态声明也在 loaded 之后。
 - 开提醒的权限流程见 §1.6；`ON_RESUME` 复检授权。
+- **单词发音语义（2026-10-11 重定义）**：`ttsEnabled` **仅**控制学习卡片英文词头自动发音（见 §6.2）；详情页点词头发音始终可用（`WordDetailViewModel` 已删掉 ttsEnabled gate，`WordDetailUiState` 不再含该字段）。**默认值 false**（`SettingsRepositoryImpl` 里 `?: false`，UI data class 默认值也必须同步为 false）。
+- **TTS 可用性检测**：`TtsSpeaker.checkAvailable(callback)` 复用进程级懒连引擎；判定必须用 `setLanguage(Locale.US/ENGLISH) >= TextToSpeech.LANG_AVAILABLE(0)` 的实测返回——**坑：`isLanguageAvailable` 在部分手表引擎返回 0/1（LANG_AVAILABLE/LANG_COUNTRY_AVAILABLE）但实际能读，阈值若取 `LANG_COUNTRY_VAR_AVAILABLE(2)` 会误判不可用**。不可用时开关禁止开启（`toggleTts()` 内拦截，历史已开启不静默关），UI 在按钮**下一个独立 lazy item** 显示灰字「暂无tts语音可用」（与 Chip 同 item 会布局叠位）。回调在引擎线程，VM 内 `viewModelScope.launch` 切回。
+
+### 6.5.1 交互式使用指引（`ui/tutorial/`，2026-10-11）
+
+- 「我的」→「使用指引」进入交互式教程（替代旧的 4 张静态说明卡）：`core/.../ui/tutorial/TutorialContent.kt` 为双端共享核心逻辑，复用真实 `StudyCardDeck`/`SpellingPanel` 组件，**零数据库/ViewModel 依赖**，用负 ID 隔离的演示数据；按步骤只放开目标手势，成功反馈 0.8s 后自动进阶；常驻跳过按钮；8 个操作步骤 + 末尾速查页。双端各自 `TutorialScreen.kt` 只做 wear/m3 适配。
 
 ### 6.6 导航与冷热启动（`ui/navigation/VocabNavHost.kt`）
 

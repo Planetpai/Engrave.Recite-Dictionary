@@ -28,8 +28,6 @@ data class WordDetailUiState(
     val bookWord: Word? = null,
     val inMistakes: Boolean = false,
     val display: DefinitionDisplay = DefinitionDisplay.BOTH,
-    /** 发音开关：关闭时详情页不显示喇叭按钮。 */
-    val ttsEnabled: Boolean = false,
     /** 同根派生词（different → differently / difference …），带各自释义。 */
     val derivatives: List<DictEntry> = emptyList(),
     /** 词形变化信息：原型 + 各变形（由 exchange 解出）。 */
@@ -64,10 +62,9 @@ class WordDetailViewModel(
         .flatMapLatest { t ->
             combine(
                 settingsRepository.definitionDisplay,
-                settingsRepository.ttsEnabled,
                 mistakeDao.observeExists(t)
-            ) { display, tts, inMistakes ->
-                Gate(display, tts, inMistakes, t)
+            ) { display, inMistakes ->
+                Gate(display, inMistakes, t)
             }
         }
         // 导航栈记录器每次跳转都写同一个 DataStore，会让上面的偏好流重发
@@ -79,8 +76,7 @@ class WordDetailViewModel(
                 emit(
                     WordDetailUiState(
                         display = gate.display,
-                        inMistakes = gate.inMistakes,
-                        ttsEnabled = gate.ttsEnabled
+                        inMistakes = gate.inMistakes
                     )
                 )
                 // 词典 lookup、短语精确查、词书查找互不依赖，并行跑
@@ -102,8 +98,7 @@ class WordDetailViewModel(
                         phrase = phrase,
                         bookWord = bookWord,
                         inMistakes = gate.inMistakes,
-                        display = gate.display,
-                        ttsEnabled = gate.ttsEnabled
+                        display = gate.display
                     )
                 )
                 val derivatives = runCatching { dictRepository.derivatives(gate.term) }.getOrDefault(emptyList())
@@ -120,7 +115,6 @@ class WordDetailViewModel(
                         bookWord = bookWord,
                         inMistakes = gate.inMistakes,
                         display = gate.display,
-                        ttsEnabled = gate.ttsEnabled,
                         derivatives = derivatives,
                         exchangeInfo = exchangeInfo,
                         phrases = phrases
@@ -161,10 +155,9 @@ class WordDetailViewModel(
     }
 }
 
-/** 详情页输入汇总：显示偏好 + 发音开关 + 错题状态 + 当前词头。 */
+/** 详情页输入汇总：显示偏好 + 错题状态 + 当前词头。 */
 private data class Gate(
     val display: DefinitionDisplay,
-    val ttsEnabled: Boolean,
     val inMistakes: Boolean,
     val term: String
 )

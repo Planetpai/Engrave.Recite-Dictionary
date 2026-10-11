@@ -28,6 +28,7 @@ import top.southfish.engrave.ui.profile.AvatarPickerScreen
 import top.southfish.engrave.ui.rememberAppContainer
 import top.southfish.engrave.ui.search.SearchScreen
 import top.southfish.engrave.ui.search.WordDetailScreen
+import top.southfish.engrave.ui.settings.OtherSettingsScreen
 import top.southfish.engrave.ui.settings.StudySettingsScreen
 import top.southfish.engrave.ui.stats.StatsScreen
 import top.southfish.engrave.ui.study.StudyScreen
@@ -145,6 +146,7 @@ private fun AppNavHost(
                     onOpenStats = { navController.navigate(Destinations.STATS) },
                     onOpenBooks = { navController.navigate(Destinations.BOOKS) },
                     onOpenSettings = { navController.navigate(Destinations.STUDY_SETTINGS) },
+                    onOpenOtherSettings = { navController.navigate(Destinations.OTHER_SETTINGS) },
                     onOpenData = { navController.navigate(Destinations.DATA) },
                     onOpenMistakes = { navController.navigate(Destinations.MISTAKES) },
                     onPickAvatar = { navController.navigate(Destinations.AVATAR_PICKER) },
@@ -204,8 +206,12 @@ private fun AppNavHost(
                 StudySettingsScreen()
             }
 
+            composable(Destinations.OTHER_SETTINGS) {
+                OtherSettingsScreen()
+            }
+
             composable(Destinations.TUTORIAL) {
-                TutorialScreen()
+                TutorialScreen(onDone = { navController.popBackStack() })
             }
 
             composable(Destinations.DATA) {

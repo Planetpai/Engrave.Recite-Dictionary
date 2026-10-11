@@ -28,14 +28,12 @@ import androidx.wear.compose.foundation.lazy.ScalingLazyColumn
 import androidx.wear.compose.foundation.lazy.rememberScalingLazyListState
 import androidx.wear.compose.material.Button
 import androidx.wear.compose.material.ButtonDefaults
-import androidx.wear.compose.material.Chip
 import androidx.wear.compose.material.ListHeader
 import androidx.wear.compose.material.MaterialTheme
 import androidx.wear.compose.material.PositionIndicator
 import androidx.wear.compose.material.Scaffold
 import androidx.wear.compose.material.Text
 import androidx.wear.compose.material.TimeText
-import top.southfish.engrave.domain.model.DefinitionDisplay
 import top.southfish.engrave.reminder.ReminderScheduler
 import top.southfish.engrave.ui.components.NumberWheel
 import top.southfish.engrave.ui.components.rememberRotaryScrollable
@@ -44,15 +42,16 @@ import top.southfish.engrave.ui.vocabViewModel
 fun reminderLabel(minutes: Int): String = "%02d:%02d".format(minutes / 60, minutes % 60)
 
 /**
- * 背单词设置：每日新词（转轮拖选）、详情页释义显示、单词发音开关、每日提醒（时/分转轮
- * + 开关按钮）。复习不设上限，所以没有复习上限这一项了。
+ * 背单词设置：每日新词（转轮拖选）+ 每日提醒（时/分转轮 + 开关按钮）。
+ * 详情页释义与单词发音已拆到「其他设置」（OtherSettingsScreen）。
  */
 @Composable
 fun StudySettingsScreen(modifier: Modifier = Modifier) {
     val viewModel = vocabViewModel<StudySettingsViewModel> { container ->
         StudySettingsViewModel(
             settingsRepository = container.settingsRepository,
-            appContext = container.appContext
+            appContext = container.appContext,
+            ttsSpeaker = container.ttsSpeaker
         )
     }
     val state by viewModel.uiState.collectAsState()
@@ -191,58 +190,6 @@ private fun StudySettingsContent(
                     onSelected = viewModel::setDailyNew,
                     format = { "%d 个".format(it) },
                     modifier = Modifier.fillMaxWidth()
-                )
-            }
-
-            item {
-                Text(
-                    "详情页释义",
-                    style = MaterialTheme.typography.caption2,
-                    color = MaterialTheme.colors.onSurfaceVariant,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 6.dp)
-                )
-            }
-            item {
-                Chip(
-                    label = {
-                        Text(
-                            when (state.definitionDisplay) {
-                                DefinitionDisplay.ZH -> "只看中文释义"
-                                DefinitionDisplay.EN -> "只看英文解释"
-                                DefinitionDisplay.BOTH -> "中英都要"
-                            }
-                        )
-                    },
-                    onClick = viewModel::cycleDefinitionDisplay,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp)
-                )
-            }
-
-            item {
-                Text(
-                    "单词发音",
-                    style = MaterialTheme.typography.caption2,
-                    color = MaterialTheme.colors.onSurfaceVariant,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 6.dp)
-                )
-            }
-            item {
-                Chip(
-                    label = {
-                        Text(if (state.ttsEnabled) "已开启 · 详情页显示喇叭" else "已关闭")
-                    },
-                    onClick = viewModel::toggleTts,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp)
                 )
             }
 

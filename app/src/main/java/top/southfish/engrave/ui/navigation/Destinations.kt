@@ -11,6 +11,8 @@ object Destinations {
     const val SEARCH = "search"
     const val BOOKS = "books"
     const val STUDY_SETTINGS = "study_settings"
+    /** 「其他」设置：详情页释义、单词发音（从背单词设置拆出的低频项）。 */
+    const val OTHER_SETTINGS = "other_settings"
     const val DATA = "data"
     const val MISTAKES = "mistakes"
     const val PICK_FILE = "pick_file"

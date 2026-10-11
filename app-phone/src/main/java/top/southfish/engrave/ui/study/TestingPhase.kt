@@ -16,6 +16,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import top.southfish.engrave.ui.rememberAppContainer
 
 /**
  * 正式背单词与复习：点一下翻面，左滑「会」、上滑「不会」，双击卡片外区域撤销。
@@ -39,6 +40,20 @@ internal fun TestingPhase(state: StudyUiState.Testing, viewModel: StudyViewModel
             kotlinx.coroutines.delay(1500)
             showMistakeHint = false
         }
+    }
+
+    // 卡片自动发音：英→中卡正面露出词头时朗读；中→英卡翻到背面露出词头时
+    // 朗读；拼写卡不能出声（等于听写作弊）。翻面回去不重读。
+    val ttsEnabled by viewModel.ttsEnabled.collectAsState()
+    val ttsSpeaker = rememberAppContainer().ttsSpeaker
+    LaunchedEffect(card.uid, card.flipped, ttsEnabled) {
+        val shouldSpeak = when {
+            !ttsEnabled -> false
+            card.kind == CardKind.EN_TO_ZH && !card.flipped -> true
+            card.kind == CardKind.ZH_TO_EN && card.flipped -> true
+            else -> false
+        }
+        if (shouldSpeak) ttsSpeaker.speak(card.item.word.term)
     }
 
     // 顶部让出 TimeText 的位置，否则进度行会和时钟叠字

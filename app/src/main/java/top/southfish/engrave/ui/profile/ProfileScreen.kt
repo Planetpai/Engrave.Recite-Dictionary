@@ -70,6 +70,7 @@ fun ProfileContent(
     onOpenStats: () -> Unit,
     onOpenBooks: () -> Unit,
     onOpenSettings: () -> Unit,
+    onOpenOtherSettings: () -> Unit,
     onOpenData: () -> Unit,
     onPickAvatar: () -> Unit,
     onOpenTutorial: () -> Unit,
@@ -235,6 +236,7 @@ fun ProfileContent(
         menuChip("学习统计", onOpenStats)
         menuChip("词书管理", onOpenBooks)
         menuChip("背单词设置", onOpenSettings)
+        menuChip("其他设置", onOpenOtherSettings)
         menuChip("数据管理", onOpenData)
         menuChip("使用指引", onOpenTutorial)
 

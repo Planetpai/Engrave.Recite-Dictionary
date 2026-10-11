@@ -96,7 +96,7 @@ fun WordDetailScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(12.dp))
-                        .clickable(enabled = state.ttsEnabled) { viewModel.speakTerm() }
+                        .clickable { viewModel.speakTerm() }
                 )
             }
 

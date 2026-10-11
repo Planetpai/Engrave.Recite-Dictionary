@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>刻词 · 新手引导重设计原型（3 步方案）</title>
+<style>
+  :root {
+    --bg: #000;
+    --surface: #2c2f36;
+    --surface-2: #3a3d45;
+    --primary: #a8c7ff;
+    --on-primary: #0b1d3d;
+    --text: #f2f2f5;
+    --text-dim: #a9adb8;
+    --error: #ff6b6b;
+    --radius: 36px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  body {
+    background: #14151a;
+    color: var(--text);
+    font-family: "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif;
+    min-height: 100vh;
+    display: flex; flex-wrap: wrap; gap: 40px;
+    align-items: center; justify-content: center;
+    padding: 32px;
+  }
+
+  /* ---------- 手表屏幕 450x450 ---------- */
+  .device {
+    width: 450px; height: 450px;
+    background: var(--bg);
+    border-radius: var(--radius);
+    border: 1px solid #2a2d34;
+    box-shadow: 0 0 0 10px #0c0d10, 0 24px 70px rgba(0,0,0,.6);
+    position: relative; overflow: hidden;
+    flex: none;
+  }
+  .screen { position: absolute; inset: 0; display: none; flex-direction: column; }
+  .screen.active { display: flex; }
+  .timetime {
+    position: absolute; top: 10px; left: 0; right: 0;
+    text-align: center; font-size: 12px; color: var(--text-dim);
+  }
+  .topbar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 30px 28px 0;
+    font-size: 13px; color: var(--text-dim);
+  }
+  .back {
+    width: 30px; height: 30px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px; color: var(--text-dim); cursor: pointer;
+    background: var(--surface);
+  }
+  .back:active { background: var(--surface-2); }
+  .dots { display: flex; gap: 6px; }
+  .dots i { width: 6px; height: 6px; border-radius: 50%; background: #44474f; display: block; }
+  .dots i.on { background: var(--primary); width: 16px; border-radius: 3px; }
+
+  .body { flex: 1; display: flex; flex-direction: column; padding: 10px 30px 26px; overflow: hidden; }
+  .title { font-size: 21px; font-weight: 600; text-align: center; }
+  .subtitle { font-size: 12.5px; color: var(--text-dim); text-align: center; margin-top: 5px; line-height: 1.5; }
+
+  /* 步骤一：词书卡片 */
+  .book-list { flex: 1; margin-top: 12px; display: flex; flex-direction: column; gap: 8px; overflow-y: auto; }
+  .book {
+    background: var(--surface); border-radius: 18px; padding: 11px 16px;
+    display: flex; align-items: center; justify-content: space-between;
+    cursor: pointer; border: 2px solid transparent;
+  }
+  .book .b-name { font-size: 15px; }
+  .book .b-count { font-size: 11.5px; color: var(--text-dim); margin-top: 2px; }
+  .book .check {
+    width: 22px; height: 22px; border-radius: 50%; border: 2px solid #5a5e68;
+    flex: none; font-size: 13px; color: transparent;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .book.sel { border-color: var(--primary); background: #1d2a45; }
+  .book.sel .check { background: var(--primary); border-color: var(--primary); color: var(--on-primary); }
+
+  /* 按钮 */
+  .pill {
+    margin-top: 10px;
+    background: var(--primary); color: var(--on-primary);
+    border: none; border-radius: 999px;
+    font-size: 15.5px; font-weight: 600;
+    padding: 13px 0; width: 100%; cursor: pointer;
+  }
+  .pill:active { filter: brightness(.88); }
+  .pill.ghost { background: var(--surface); color: var(--text); font-weight: 400; font-size: 13.5px; padding: 10px 0; }
+
+  /* 步骤二：数量 */
+  .stepper-wrap { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; }
+  .stepper { display: flex; align-items: center; gap: 30px; }
+  .step-btn {
+    width: 58px; height: 58px; border-radius: 50%;
+    background: var(--surface); border: none; color: var(--text);
+    font-size: 30px; cursor: pointer; line-height: 1;
+  }
+  .step-btn:active { background: var(--surface-2); }
+  .big-num { font-size: 56px; font-weight: 700; min-width: 130px; text-align: center; }
+  .big-num small { font-size: 18px; font-weight: 400; color: var(--text-dim); margin-left: 4px; }
+  .presets { display: flex; gap: 8px; }
+  .preset {
+    background: var(--surface); border: none; color: var(--text);
+    border-radius: 999px; padding: 8px 18px; font-size: 14px; cursor: pointer;
+  }
+  .preset.sel { background: var(--primary); color: var(--on-primary); font-weight: 600; }
+  .range-hint { font-size: 11.5px; color: var(--text-dim); }
+
+  /* 步骤三：提醒 */
+  .rem-card {
+    margin-top: 14px; border-radius: 22px; padding: 16px;
+    background: var(--surface); display: flex; align-items: center; justify-content: space-between;
+    cursor: pointer;
+  }
+  .rem-card .r-main { font-size: 16px; }
+  .rem-card .r-sub { font-size: 11.5px; color: var(--text-dim); margin-top: 3px; }
+  .switch {
+    width: 46px; height: 28px; border-radius: 999px; background: #4a4d56;
+    position: relative; flex: none; transition: background .15s;
+  }
+  .switch::after {
+    content: ""; position: absolute; top: 3px; left: 3px;
+    width: 22px; height: 22px; border-radius: 50%; background: #fff; transition: left .15s;
+  }
+  .switch.on { background: var(--primary); }
+  .switch.on::after { left: 21px; }
+  .time-pick { display: none; align-items: center; justify-content: center; gap: 14px; margin-top: 12px; }
+  .time-pick.show { display: flex; }
+  .t-col { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+  .t-btn {
+    width: 52px; height: 40px; border-radius: 14px; background: var(--surface-2);
+    border: none; color: var(--text); font-size: 20px; cursor: pointer;
+  }
+  .t-val { font-size: 30px; font-weight: 700; min-width: 64px; text-align: center; }
+  .t-col label { font-size: 11px; color: var(--text-dim); }
+  .inline-note {
+    display: none; margin-top: 10px; font-size: 11.5px; color: #ffc46b;
+    text-align: center; line-height: 1.5;
+  }
+  .inline-note.show { display: block; }
+  .skip { margin-top: 8px; text-align: center; font-size: 12.5px; color: var(--text-dim); cursor: pointer; padding: 6px; }
+
+  /* 完成 */
+  .done-wrap { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; }
+  .done-icon { font-size: 54px; }
+  .summary-card {
+    background: var(--surface); border-radius: 18px; padding: 14px 20px;
+    font-size: 13px; line-height: 2; color: var(--text-dim); text-align: center;
+  }
+  .summary-card b { color: var(--text); font-weight: 600; }
+
+  /* 系统权限对话框（模拟，不离开应用） */
+  .overlay {
+    position: absolute; inset: 0; background: rgba(0,0,0,.55);
+    display: none; align-items: flex-end; z-index: 20;
+  }
+  .overlay.show { display: flex; }
+  .sys-dialog {
+    background: #23262e; border-radius: 22px 22px 0 0; width: 100%;
+    padding: 20px 22px 26px;
+  }
+  .sys-dialog h4 { font-size: 15px; margin-bottom: 6px; }
+  .sys-dialog p { font-size: 12.5px; color: var(--text-dim); line-height: 1.6; margin-bottom: 16px; }
+  .sys-dialog .row { display: flex; gap: 10px; }
+  .sys-dialog button {
+    flex: 1; padding: 11px 0; border-radius: 999px; border: none;
+    font-size: 14px; cursor: pointer;
+  }
+  .btn-deny { background: var(--surface-2); color: var(--text); }
+  .btn-allow { background: var(--primary); color: var(--on-primary); font-weight: 600; }
+
+  .toast {
+    position: absolute; left: 50%; bottom: 40px; transform: translateX(-50%);
+    background: #e9eaee; color: #111; font-size: 12.5px;
+    padding: 9px 16px; border-radius: 999px; opacity: 0; pointer-events: none;
+    transition: opacity .2s; white-space: nowrap; z-index: 30;
+  }
+  .toast.show { opacity: 1; }
+
+  /* ---------- 右侧说明面板 ---------- */
+  .panel { width: 430px; max-width: 92vw; }
+  .panel h1 { font-size: 22px; margin-bottom: 8px; }
+  .panel .tag { display: inline-block; font-size: 12px; color: var(--primary); border: 1px solid #3a4a6b; border-radius: 999px; padding: 2px 10px; margin-bottom: 14px; }
+  .panel h2 { font-size: 15px; margin: 20px 0 8px; color: var(--primary); }
+  .panel ul { list-style: none; }
+  .panel li { font-size: 13.5px; line-height: 1.7; color: #d3d6dd; padding-left: 16px; position: relative; }
+  .panel li::before { content: "·"; position: absolute; left: 4px; color: var(--primary); font-weight: 700; }
+  .compare { display: flex; gap: 10px; margin-top: 6px; }
+  .compare > div { flex: 1; background: #1d1e24; border-radius: 12px; padding: 10px 12px; font-size: 12px; line-height: 1.7; }
+  .compare .old { color: #b79a9a; }
+  .compare .new { color: #9fd0a8; }
+  .compare b { display: block; font-size: 12.5px; margin-bottom: 4px; }
+  .restart {
+    margin-top: 18px; background: var(--surface-2); color: var(--text); border: none;
+    border-radius: 999px; padding: 9px 20px; font-size: 13px; cursor: pointer;
+  }
+  .note { font-size: 11.5px; color: #7c808b; margin-top: 14px; line-height: 1.7; }
+</style>
+</head>
+<body>
+
+<div class="device" id="device">
+  <div class="timetime">20:00</div>
+
+  <!-- 步骤 1/3：选词书 -->
+  <div class="screen active" id="s1">
+    <div class="topbar">
+      <div class="back" id="back1" style="visibility:hidden">‹</div>
+      <div class="dots"><i class="on"></i><i></i><i></i></div>
+      <div style="width:30px"></div>
+    </div>
+    <div class="body">
+      <div class="title">选一本词书</div>
+      <div class="subtitle">先从这一本开始，以后可以多选或换书</div>
+      <div class="book-list" id="bookList"></div>
+      <button class="pill" id="go2">就用这本</button>
+    </div>
+  </div>
+
+  <!-- 步骤 2/3：每天学多少 -->
+  <div class="screen" id="s2">
+    <div class="topbar">
+      <div class="back" data-go="s1">‹</div>
+      <div class="dots"><i></i><i class="on"></i><i></i></div>
+      <div style="width:30px"></div>
+    </div>
+    <div class="body">
+      <div class="title">每天学多少新词</div>
+      <div class="stepper-wrap">
+        <div class="stepper">
+          <button class="step-btn" id="minus">−</button>
+          <div class="big-num"><span id="num">10</span><small>个</small></div>
+          <button class="step-btn" id="plus">+</button>
+        </div>
+        <div class="presets">
+          <button class="preset" data-n="5">5</button>
+          <button class="preset sel" data-n="10">10</button>
+          <button class="preset" data-n="20">20</button>
+          <button class="preset" data-n="30">30</button>
+        </div>
+        <div class="range-hint">可选 5–50 个，复习量自动安排，不设上限</div>
+      </div>
+      <button class="pill" id="go3">下一步</button>
+    </div>
+  </div>
+
+  <!-- 步骤 3/3：提醒 -->
+  <div class="screen" id="s3">
+    <div class="topbar">
+      <div class="back" data-go="s2">‹</div>
+      <div class="dots"><i></i><i></i><i class="on"></i></div>
+      <div style="width:30px"></div>
+    </div>
+    <div class="body">
+      <div class="title">定个学习提醒</div>
+      <div class="rem-card" id="remCard">
+        <div>
+          <div class="r-main">每日提醒</div>
+          <div class="r-sub" id="remSub">开启后每天到点提醒你背单词</div>
+        </div>
+        <div class="switch" id="remSwitch"></div>
+      </div>
+      <div class="time-pick" id="timePick">
+        <div class="t-col">
+          <button class="t-btn" id="hUp">＋</button>
+          <div class="t-val" id="hVal">20</div>
+          <label>时</label>
+          <button class="t-btn" id="hDn">－</button>
+        </div>
+        <div class="t-col">
+          <button class="t-btn" id="mUp">＋</button>
+          <div class="t-val" id="mVal">00</div>
+          <label>分（5 分钟一档）</label>
+          <button class="t-btn" id="mDn">－</button>
+        </div>
+      </div>
+      <div class="inline-note" id="permNote">通知权限没开，不会收到提醒。<br>可随时在「我的 → 设置」里开启，不影响使用。</div>
+      <div class="skip" id="skipRem">暂不提醒，直接开始</div>
+      <button class="pill" id="finishBtn">开始背单词</button>
+    </div>
+  </div>
+
+  <!-- 完成（最后一步直接收口，不单独算一步） -->
+  <div class="screen" id="s4">
+    <div class="topbar"><div style="width:30px"></div><div></div><div style="width:30px"></div></div>
+    <div class="body">
+      <div class="done-wrap">
+        <div class="done-icon">✅</div>
+        <div class="title" style="text-align:center">都设置好了</div>
+        <div class="summary-card" id="summary"></div>
+        <button class="pill" id="startStudy">开始学习</button>
+        <button class="pill ghost" id="replay">重看一遍引导</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 模拟系统权限对话框：应用内底部弹出，不跳转系统设置 -->
+  <div class="overlay" id="permOverlay">
+    <div class="sys-dialog">
+      <h4>允许「刻词」发送通知吗？</h4>
+      <p>用于每日学习提醒。你可以在系统设置和应用内随时关闭。</p>
+      <div class="row">
+        <button class="btn-deny" id="permDeny">不允许</button>
+        <button class="btn-allow" id="permAllow">允许</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast">原型结束：实际版本会进入主页开始背词</div>
+</div>
+
+<div class="panel">
+  <h1>新手引导重设计 · 可操作原型</h1>
+  <span class="tag">450×450 手表屏 · 直接点屏幕试完整流程</span>
+
+  <h2>新流程：4 步 → 3 步</h2>
+  <div class="compare">
+    <div class="old"><b>现版本</b>①选词书 → ②每日数量 → ③提醒（开/关+双转轮）→ ④完成页 → 开始使用</div>
+    <div class="new"><b>新方案</b>①选词书 → ②每日数量 → ③提醒（完成收口合并在本步按钮）</div>
+  </div>
+
+  <h2>本原型可操作的点</h2>
+  <ul>
+    <li>步骤①：点词书卡片切换选择，默认选中第一本</li>
+    <li>步骤②：− / + 调数量，或点 5 / 10 / 20 / 30 快捷档</li>
+    <li>步骤③：点卡片开关；首次开启弹<b>应用内</b>系统权限对话框（模拟）</li>
+    <li>权限点「不允许」→ <b>不跳系统设置</b>，原地黄色提示降级，可直接继续</li>
+    <li>开启后展开时/分步进器（5 分钟一档，沿用现有设置粒度）</li>
+    <li>最后一页汇总三项选择，「开始学习」即收口；可重看</li>
+  </ul>
+
+  <h2>设计要点（交接给实现）</h2>
+  <ul>
+    <li>完成页不单独占一步：第③步主按钮直接是「开始背单词」，减少一次点击</li>
+    <li>引导中途不离开应用：权限只用系统对话框；拒绝后不跳系统通知设置页（现版本会跳，实测返回后引导进度重置到 1/4）</li>
+    <li>释义显示 / 单词发音不进引导，沿用默认（中英都要、发音开），在重排后的设置页里触达</li>
+    <li>电池优化白名单引导保留，但延后到首次进入主页后或设置页处理，不放在引导链路</li>
+    <li>提醒选择改为 finish 时统一落库，不要像现在 setReminder 中途即写 DataStore（没走完引导也会改设置）</li>
+  </ul>
+  <button class="restart" id="restartBtn">↺ 重置原型</button>
+  <div class="note">
+    这是静态 HTML 线框高保真原型，仅用于确认交互与文案；视觉细节（字号/颜色/动效）实现时对齐现有 Wear Compose 主题。
+  </div>
+</div>
+
+<script>
+  const books = [
+    { name: "初中词汇", count: "约 1987 词" },
+    { name: "高中词汇", count: "约 3743 词" },
+    { name: "四级词汇", count: "约 4105 词" },
+    { name: "六级词汇", count: "约 2420 词" }
+  ];
+
+  const state = {
+    book: 0,
+    num: 10,
+    rem: false,
+    perm: null,        // null = 未问过, true/false = 系统权限结果
+    h: 20, m: 0
+  };
+
+  const $ = id => document.getElementById(id);
+  const go = id => {
+    document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
+    $(id).classList.add("active");
+  };
+  const toast = msg => {
+    const t = $("toast"); t.textContent = msg; t.classList.add("show");
+    setTimeout(() => t.classList.remove("show"), 2200);
+  };
+
+  // 词书列表
+  function renderBooks() {
+    $("bookList").innerHTML = books.map((b, i) => `
+      <div class="book ${i === state.book ? "sel" : ""}" data-i="${i}">
+        <div><div class="b-name">${b.name}</div><div class="b-count">${b.count}</div></div>
+        <div class="check">✓</div>
+      </div>`).join("");
+    document.querySelectorAll(".book").forEach(el =>
+      el.onclick = () => { state.book = +el.dataset.i; renderBooks(); });
+  }
+  renderBooks();
+  $("go2").onclick = () => go("s2");
+
+  // 数量
+  function renderNum() {
+    $("num").textContent = state.num;
+    document.querySelectorAll(".preset").forEach(p =>
+      p.classList.toggle("sel", +p.dataset.n === state.num));
+  }
+  $("minus").onclick = () => { state.num = Math.max(5, state.num - 1); renderNum(); };
+  $("plus").onclick = () => { state.num = Math.min(50, state.num + 1); renderNum(); };
+  document.querySelectorAll(".preset").forEach(p =>
+    p.onclick = () => { state.num = +p.dataset.n; renderNum(); });
+  $("go3").onclick = () => go("s3");
+
+  // 返回
+  document.querySelectorAll(".back[data-go]").forEach(b => b.onclick = () => go(b.dataset.go));
+
+  // 提醒开关
+  function renderRem() {
+    $("hVal").textContent = fmt(state.h);
+    $("mVal").textContent = fmt(state.m);
+    $("remSwitch").classList.toggle("on", state.rem);
+    $("timePick").classList.toggle("show", state.rem);
+    $("remSub").textContent = state.rem
+      ? `每天 ${fmt(state.h)}:${fmt(state.m)} 提醒`
+      : "开启后每天到点提醒你背单词";
+    // 被拒过且当前没开提醒时，常驻行内降级提示；开启或从未询问时隐藏
+    $("permNote").classList.toggle("show", state.perm === false && !state.rem);
+  }
+  const fmt = n => String(n).padStart(2, "0");
+
+  $("remCard").onclick = () => {
+    if (state.rem) { state.rem = false; renderRem(); return; }
+    // 首次开启：问权限（应用内对话框模拟，不跳系统设置）
+    if (state.perm === null) { $("permOverlay").classList.add("show"); return; }
+    state.rem = state.perm === true;
+    if (!state.rem) $("permNote").classList.add("show");
+    renderRem();
+  };
+  $("permAllow").onclick = () => {
+    state.perm = true; state.rem = true;
+    $("permOverlay").classList.remove("show"); renderRem();
+  };
+  $("permDeny").onclick = () => {
+    state.perm = false; state.rem = false;
+    $("permOverlay").classList.remove("show");
+    $("permNote").classList.add("show"); renderRem();
+  };
+
+  // 时间步进
+  $("hUp").onclick = () => { state.h = (state.h + 1) % 24; renderRem(); };
+  $("hDn").onclick = () => { state.h = (state.h + 23) % 24; renderRem(); };
+  $("mUp").onclick = () => { state.m = (state.m + 5) % 60; renderRem(); };
+  $("mDn").onclick = () => { state.m = (state.m + 55) % 60; renderRem(); };
+
+  $("skipRem").onclick = () => finish();
+  $("finishBtn").onclick = () => finish();
+
+  function finish() {
+    $("summary").innerHTML =
+      `词书：<b>${books[state.book].name}</b><br>` +
+      `每天新词：<b>${state.num} 个</b><br>` +
+      `每日提醒：<b>${state.rem ? `每天 ${fmt(state.h)}:${fmt(state.m)}` : "暂不开启"}</b>`;
+    go("s4");
+  }
+  $("startStudy").onclick = () => toast("原型结束：实际版本会进入主页开始背词");
+  const reset = () => {
+    state.book = 0; state.num = 10; state.rem = false; state.perm = null; state.h = 20; state.m = 0;
+    $("permNote").classList.remove("show");
+    renderBooks(); renderNum(); renderRem(); go("s1");
+  };
+  $("replay").onclick = reset;
+  $("restartBtn").onclick = reset;
+</script>
+</body>
+</html>

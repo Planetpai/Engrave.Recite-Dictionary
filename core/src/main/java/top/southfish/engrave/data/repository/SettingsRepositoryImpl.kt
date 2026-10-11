@@ -78,8 +78,8 @@ class SettingsRepositoryImpl(context: Context) : SettingsRepository {
         DefinitionDisplay.entries.firstOrNull { it.name == raw } ?: DefinitionDisplay.BOTH
     }
 
-    /** 单词发音默认开启：只有用户明确关掉后才静音。 */
-    override val ttsEnabled: Flow<Boolean> = dataStore.data.map { it[Keys.TTS_ENABLED] ?: true }
+    /** 单词发音默认关闭：用户在「其他设置」里明确开启后才自动朗读。 */
+    override val ttsEnabled: Flow<Boolean> = dataStore.data.map { it[Keys.TTS_ENABLED] ?: false }
 
     override val reminderMinutes: Flow<Int?> = dataStore.data.map { it[Keys.REMINDER_MINUTES] }
 

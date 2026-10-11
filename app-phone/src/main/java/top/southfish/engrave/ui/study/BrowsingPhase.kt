@@ -16,6 +16,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.material3.MaterialTheme
+import top.southfish.engrave.ui.rememberAppContainer
 
 /**
  * 浏览选词：先把今天的新词扫一遍。
@@ -39,6 +40,13 @@ internal fun BrowsingPhase(state: StudyUiState.Browsing, viewModel: StudyViewMod
             kotlinx.coroutines.delay(1500)
             showMistakeHint = false
         }
+    }
+
+    // 卡片自动发音：设置开启时，英文词头一出现就朗读；翻面预览不重读，换卡才触发
+    val ttsEnabled by viewModel.ttsEnabled.collectAsState()
+    val ttsSpeaker = rememberAppContainer().ttsSpeaker
+    LaunchedEffect(word.id, ttsEnabled) {
+        if (ttsEnabled) ttsSpeaker.speak(word.term)
     }
 
     // 顶部让出 TimeText 的位置，否则进度行会和时钟叠字

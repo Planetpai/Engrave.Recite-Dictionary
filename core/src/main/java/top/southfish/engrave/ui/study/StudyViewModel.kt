@@ -16,9 +16,11 @@ import top.southfish.engrave.domain.usecase.RestoreSessionUseCase
 import top.southfish.engrave.domain.usecase.SubmitReviewUseCase
 import top.southfish.engrave.domain.usecase.UndoReviewUseCase
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 /**
@@ -61,6 +63,13 @@ class StudyViewModel(
     /** 长按加入错题集成功的时间戳，界面借此闪一下提示。 */
     private val _mistakeFlash = MutableStateFlow(0L)
     val mistakeFlash: StateFlow<Long> = _mistakeFlash.asStateFlow()
+
+    /**
+     * 单词发音开关：学习卡片展示英文词头时是否自动朗读（仅学习卡片场景，
+     * 详情页点词头朗读不受它控制）。
+     */
+    val ttsEnabled: StateFlow<Boolean> = settingsRepository.ttsEnabled
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
 
     private val _uiState = MutableStateFlow<StudyUiState>(StudyUiState.Loading)
     val uiState: StateFlow<StudyUiState> = _uiState.asStateFlow()
