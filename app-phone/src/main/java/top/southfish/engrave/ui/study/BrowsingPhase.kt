@@ -21,8 +21,8 @@ import top.southfish.engrave.ui.rememberAppContainer
 /**
  * 浏览选词：先把今天的新词扫一遍。
  *
- * 卡片正面英文、背面中文释义，单击可翻面预览；判定滑动（左滑已学过 /
- * 上滑不认识）不要求先翻面，正反面都能直接滑。
+ * 卡片正面英文+例句、背面中文释义+例句翻译，单击可翻面预览；判定滑动
+ * （左滑已学过 / 上滑不认识）不要求先翻面，正反面都能直接滑。
  * 左滑「已学过」按 EASY 落库，直接排到几天后；上滑「不认识」选进待背列表。
  */
 @Composable
@@ -83,26 +83,15 @@ internal fun BrowsingPhase(state: StudyUiState.Browsing, viewModel: StudyViewMod
             front = {
                 CardTitle(word.term)
                 word.phonetic?.let { CardPhonetic(it) }
-                BrowseHint("点一下看释义")
+                // 例句跟单词同面：见词即见语境
+                word.example?.let { CardCaption(it, maxLines = 2) }
             },
             back = {
-                // 背面：词性+释义，下面跟例句和例句翻译；圆屏空间有限，长文靠省略号收口
+                // 背面：中文释义 + 例句翻译；圆屏空间有限，长文靠省略号收口
                 CardBody(word.meaning, maxLines = 2)
-                ExampleBlock(word, exampleMaxLines = 2, translationMaxLines = 1)
+                word.exampleTranslation?.let { CardCaption(it, maxLines = 2) }
             }
         )
     }
 }
 
-@Composable
-private fun BrowseHint(text: String) {
-    Text(
-        text = text,
-        style = MaterialTheme.typography.labelSmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        textAlign = TextAlign.Center,
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(top = 4.dp)
-    )
-}

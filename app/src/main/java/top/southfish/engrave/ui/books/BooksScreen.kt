@@ -32,8 +32,9 @@ import androidx.wear.compose.material.MaterialTheme
 import androidx.wear.compose.material.PositionIndicator
 import androidx.wear.compose.material.Scaffold
 import androidx.wear.compose.material.Text
-import androidx.wear.compose.material.TimeText
+import top.southfish.engrave.ui.components.AnimatedTimeText
 import top.southfish.engrave.ui.components.rememberRotaryScrollable
+import top.southfish.engrave.ui.components.rememberTimeTextVisible
 import top.southfish.engrave.ui.vocabViewModel
 
 /**
@@ -59,6 +60,7 @@ fun BooksScreen(
     val state by viewModel.uiState.collectAsState()
     val listState = rememberScalingLazyListState()
     rememberRotaryScrollable(listState)
+    val timeVisible = rememberTimeTextVisible(listState)
 
     // 待确认删除的词书：点「删除」先弹确认层，防止误删本地词书
     var pendingDelete by remember { mutableStateOf<top.southfish.engrave.domain.model.WordBook?>(null) }
@@ -72,7 +74,7 @@ fun BooksScreen(
 
     Scaffold(
         modifier = modifier,
-        timeText = { TimeText() },
+        timeText = { AnimatedTimeText(timeVisible) },
         positionIndicator = { PositionIndicator(scalingLazyListState = listState) }
     ) {
         ScalingLazyColumn(

@@ -29,10 +29,11 @@ import androidx.wear.compose.material.MaterialTheme
 import androidx.wear.compose.material.PositionIndicator
 import androidx.wear.compose.material.Scaffold
 import androidx.wear.compose.material.Text
-import androidx.wear.compose.material.TimeText
+import top.southfish.engrave.ui.components.AnimatedTimeText
 import top.southfish.engrave.data.local.entity.MistakeEntity
 import top.southfish.engrave.ui.components.SwipeLeftRow
 import top.southfish.engrave.ui.components.rememberRotaryScrollable
+import top.southfish.engrave.ui.components.rememberTimeTextVisible
 import top.southfish.engrave.ui.vocabViewModel
 
 /**
@@ -53,10 +54,11 @@ fun MistakesScreen(
     val state by viewModel.uiState.collectAsState()
     val listState = rememberScalingLazyListState()
     rememberRotaryScrollable(listState)
+    val timeVisible = rememberTimeTextVisible(listState)
 
     Scaffold(
         modifier = modifier,
-        timeText = { TimeText() },
+        timeText = { AnimatedTimeText(timeVisible) },
         positionIndicator = { PositionIndicator(scalingLazyListState = listState) }
     ) {
         ScalingLazyColumn(

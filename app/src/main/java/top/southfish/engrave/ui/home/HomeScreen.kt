@@ -12,6 +12,7 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
@@ -25,9 +26,11 @@ import androidx.wear.compose.material.MaterialTheme
 import androidx.wear.compose.material.PositionIndicator
 import androidx.wear.compose.material.Scaffold
 import androidx.wear.compose.material.Text
-import androidx.wear.compose.material.TimeText
+import top.southfish.engrave.ui.components.AnimatedTimeText
+import top.southfish.engrave.ui.components.PageDots
 import top.southfish.engrave.ui.components.formatProgress
 import top.southfish.engrave.ui.components.rememberRotaryScrollable
+import top.southfish.engrave.ui.components.rememberTimeTextVisible
 import top.southfish.engrave.ui.profile.ProfileContent
 import top.southfish.engrave.ui.vocabViewModel
 
@@ -67,19 +70,29 @@ fun HomeScreen(
     val homeListState = rememberScalingLazyListState()
     val profileListState = rememberScalingLazyListState()
 
+    // 时间条跟随当前页的列表：列表在顶部或往回滑时显示，往下翻就隐藏
+    val homeTimeVisible = rememberTimeTextVisible(homeListState)
+    val profileTimeVisible = rememberTimeTextVisible(profileListState)
+
+    // 表圈滚动全屏只挂这一处：motion listener 单槽位，内层页面再挂会把
+    // 这里的覆盖掉（这正是首页表圈失灵的根因）。目标列表由重组自动更新。
     rememberRotaryScrollable(
         state = if (pagerState.currentPage == 0) homeListState else profileListState
     )
 
     Scaffold(
         modifier = modifier,
-        timeText = { TimeText() },
+        timeText = {
+            val currentVisible = if (pagerState.currentPage == 0) homeTimeVisible else profileTimeVisible
+            AnimatedTimeText(currentVisible)
+        },
         positionIndicator = {
             PositionIndicator(
                 scalingLazyListState = if (pagerState.currentPage == 0) homeListState else profileListState
             )
         }
     ) {
+        Box(Modifier.fillMaxSize()) {
         HorizontalPager(state = pagerState, modifier = Modifier.fillMaxSize()) { page ->
             when (page) {
                 0 -> HomeContent(
@@ -102,6 +115,13 @@ fun HomeScreen(
                 )
             }
         }
+            PageDots(
+                pagerState = pagerState,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 8.dp)
+            )
+        }
     }
 }
 
@@ -114,8 +134,6 @@ private fun HomeContent(
     onOpenMistakes: () -> Unit,
     listState: ScalingLazyListState
 ) {
-    rememberRotaryScrollable(listState, enabled = false) // 表圈由外层按当前页接管
-
     ScalingLazyColumn(
         modifier = Modifier.fillMaxSize(),
         state = listState,

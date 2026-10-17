@@ -45,12 +45,13 @@ import androidx.wear.compose.material.MaterialTheme
 import androidx.wear.compose.material.PositionIndicator
 import androidx.wear.compose.material.Scaffold
 import androidx.wear.compose.material.Text
-import androidx.wear.compose.material.TimeText
+import top.southfish.engrave.ui.components.AnimatedTimeText
+import top.southfish.engrave.ui.components.PageDots
 import top.southfish.engrave.data.local.entity.SearchHistoryEntity
 import top.southfish.engrave.ui.components.SwipeLeftRow
-import top.southfish.engrave.ui.components.rememberRotaryScrollHandler
+import top.southfish.engrave.ui.components.rememberDynamicRotaryScroll
+import top.southfish.engrave.ui.components.rememberTimeTextVisible
 import top.southfish.engrave.ui.vocabViewModel
-import androidx.compose.foundation.gestures.scrollBy
 
 private val SearchFieldBackground = Color(0xFF1B202A)
 
@@ -97,15 +98,18 @@ fun SearchScreen(
         initialPage = viewModel.pagerPage(),
         pageCount = { 2 }
     )
-    rememberRotaryScrollHandler { pixels ->
-        val target = if (state.query.isBlank()) {
+    // 时间条跟随当前区域的列表：在顶部或往回滑时显示，往下翻就隐藏
+    val historyTimeVisible = rememberTimeTextVisible(historyListState)
+    val wordTimeVisible = rememberTimeTextVisible(wordListState)
+    val phraseTimeVisible = rememberTimeTextVisible(phraseListState)
+    rememberDynamicRotaryScroll {
+        if (state.query.isBlank()) {
             historyListState
         } else if (pagerState.currentPage == 0) {
             wordListState
         } else {
             phraseListState
         }
-        target.scrollBy(pixels)
     }
     // 离开搜索页时确保键盘收起（自动弹出用了 SHOW_FORCED），并把当前
     // 滚动位置/分页存进 VM —— 跳详情再返回时本页组合重建，靠它恢复现场。
@@ -132,7 +136,12 @@ fun SearchScreen(
 
     Scaffold(
         modifier = modifier,
-        timeText = { TimeText() },
+        timeText = {
+            val timeVisible = if (state.query.isBlank()) historyTimeVisible
+            else if (pagerState.currentPage == 0) wordTimeVisible
+            else phraseTimeVisible
+            AnimatedTimeText(timeVisible)
+        },
         positionIndicator = {
             val activeListState = if (state.query.isBlank()) {
                 historyListState
@@ -144,6 +153,7 @@ fun SearchScreen(
             PositionIndicator(scalingLazyListState = activeListState)
         }
     ) {
+        Box(Modifier.fillMaxSize()) {
         Column(
             Modifier
                 .fillMaxSize()
@@ -173,6 +183,15 @@ fun SearchScreen(
                         onOpenPhrase = { viewModel.openWord(it.phrase, onOpenWord) }
                     )
                 }
+            }
+        }
+            if (!state.query.isBlank()) {
+                PageDots(
+                    pagerState = pagerState,
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(bottom = 8.dp)
+                )
             }
         }
     }

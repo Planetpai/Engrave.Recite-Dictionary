@@ -9,6 +9,7 @@ import android.os.Environment
 import android.provider.MediaStore
 import java.io.File
 import top.southfish.engrave.data.local.AppDatabase
+import top.southfish.engrave.data.local.DayIndex
 import top.southfish.engrave.data.local.entity.ReviewStateEntity
 import top.southfish.engrave.data.seed.SeedDataProvider
 import top.southfish.engrave.data.seed.WordBookJsonParser
@@ -109,6 +110,20 @@ class BackupManager(
                     })
                 }
             })
+
+            // 当天没背完的词（选词已入选 + 正在背的队列）也记进备份：
+            // 这些词在库里还是 NEW 不进 states，不单独记的话还原后会
+            // 从词书开头重新选起，选词进度就丢了
+            sessionStore.load(DayIndex.today())?.let { snap ->
+                val ids = (snap.selected + snap.testQueue.map { it.wordId }).distinct()
+                if (ids.isNotEmpty()) {
+                    val byId = database.reviewStateDao().getItemsByIds(ids).associateBy { it.state.wordId }
+                    val terms = ids.mapNotNull { byId[it]?.term }
+                    if (terms.isNotEmpty()) {
+                        put("pendingTerms", JSONArray(terms))
+                    }
+                }
+            }
         }
 
         val name = "vocab-backup-${STAMP_FORMAT.format(System.currentTimeMillis())}.json"
@@ -233,6 +248,7 @@ class BackupManager(
         }
 
         restoreStatesAndSettings(root)
+        restorePendingTerms(root)
         imported
     }
 
@@ -298,6 +314,35 @@ class BackupManager(
         // 备份来自老用户，恢复完不该再进首启引导
         settingsRepository.completeOnboarding()
         sessionStore.clear()
+    }
+
+    /**
+     * 还原备份里的 pendingTerms（当天没背完的词）：重建为正式阶段的待背
+     * 队列，学习页打开就接着背。词头解析不到的（词书有变动）丢弃；
+     * 一条都解析不出来就不写快照，按当日额度正常重新规划。
+     */
+    private suspend fun restorePendingTerms(root: JSONObject) {
+        val terms = root.optJSONArray("pendingTerms") ?: return
+        val ids = (0 until terms.length())
+            .mapNotNull { i ->
+                terms.optString(i).takeIf { it.isNotBlank() }?.let { wordRepository.findWord(it)?.id }
+            }
+            .distinct()
+        if (ids.isEmpty()) return
+        sessionStore.save(
+            StudySessionStore.Snapshot(
+                day = DayIndex.today(),
+                phase = "FORMAL",
+                browseQueue = emptyList(),
+                selected = emptyList(),
+                selectionTarget = 0,
+                testQueue = ids.map { StudySessionStore.Snapshot.CardSnapshot(it, 1, false) },
+                dueItems = emptyList(),
+                newWords = emptyList(),
+                reviewWords = emptyList(),
+                againCount = 0
+            )
+        )
     }
 
     /**

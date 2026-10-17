@@ -25,10 +25,11 @@ import androidx.wear.compose.material.MaterialTheme
 import androidx.wear.compose.material.PositionIndicator
 import androidx.wear.compose.material.Scaffold
 import androidx.wear.compose.material.Text
-import androidx.wear.compose.material.TimeText
+import top.southfish.engrave.ui.components.AnimatedTimeText
 import top.southfish.engrave.data.dictionary.DictRepository
 import top.southfish.engrave.domain.model.DefinitionDisplay
 import top.southfish.engrave.ui.components.rememberRotaryScrollable
+import top.southfish.engrave.ui.components.rememberTimeTextVisible
 import top.southfish.engrave.ui.vocabViewModel
 
 /**
@@ -60,6 +61,7 @@ fun WordDetailScreen(
         initialCenterItemScrollOffset = savedPos.offset
     )
     rememberRotaryScrollable(listState)
+    val timeVisible = rememberTimeTextVisible(listState)
     // 离开本页时把滚动位置存进 VM（VM 挂在导航条目上，返回时仍存活）
     androidx.compose.runtime.DisposableEffect(Unit) {
         onDispose {
@@ -76,7 +78,7 @@ fun WordDetailScreen(
 
     Scaffold(
         modifier = modifier,
-        timeText = { TimeText() },
+        timeText = { AnimatedTimeText(timeVisible) },
         positionIndicator = { PositionIndicator(scalingLazyListState = listState) }
     ) {
         ScalingLazyColumn(

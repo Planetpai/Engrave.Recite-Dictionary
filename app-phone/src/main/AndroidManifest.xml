@@ -12,6 +12,9 @@
         </intent>
     </queries>
 
+    <!-- 检查更新联网（查 GitHub Releases）。漏声明会被 SecurityException 拦截，
+         表现为「网络连接失败」的假性断网 -->
+    <uses-permission android:name="android.permission.INTERNET" />
     <!-- 每日背单词提醒 -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
@@ -43,6 +46,7 @@
             android:name="top.southfish.engrave.phone.MainActivity"
             android:exported="true"
             android:label="@string/app_name"
+            android:launchMode="singleTask"
             android:theme="@android:style/Theme.DeviceDefault.NoActionBar">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

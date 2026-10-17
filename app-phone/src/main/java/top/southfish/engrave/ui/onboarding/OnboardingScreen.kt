@@ -49,6 +49,7 @@ import top.southfish.engrave.ui.vocabViewModel
 @Composable
 fun OnboardingScreen(
     onDone: () -> Unit,
+    onOpenData: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val viewModel = vocabViewModel<OnboardingViewModel> { container ->
@@ -152,6 +153,31 @@ fun OnboardingScreen(
                                     textAlign = TextAlign.Center,
                                     modifier = Modifier.fillMaxWidth()
                                 )
+                            }
+                        }
+                        // 老用户重装/换机：不用选词书，直接导入备份恢复
+                        item {
+                            Text(
+                                "或者",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 6.dp)
+                            )
+                        }
+                        item {
+                            Button(
+                                onClick = onOpenData,
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = MaterialTheme.colorScheme.surface
+                                ),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 40.dp)
+                            ) {
+                                Text("导入数据")
                             }
                         }
                         item { NextButton(state.canNext, viewModel::next) }

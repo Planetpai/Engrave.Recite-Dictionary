@@ -9,6 +9,9 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.Modifier
 import androidx.navigation.NavBackStackEntry
@@ -45,6 +48,8 @@ import kotlinx.coroutines.flow.firstOrNull
 @Composable
 fun PhoneNavHost(
     coldStart: Boolean,
+    autoStartStudy: Boolean = false,
+    onAutoStartConsumed: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val container = rememberAppContainer()
@@ -58,6 +63,8 @@ fun PhoneNavHost(
             // 冷启动只记录、不恢复：保证从主页开始。
             recordNavStack = startKnown,
             restoreStack = startKnown && !coldStart,
+            autoStartStudy = autoStartStudy,
+            onAutoStartConsumed = onAutoStartConsumed,
             settingsRepository = container.settingsRepository,
             modifier = modifier
         )
@@ -78,23 +85,45 @@ private fun AppNavHost(
     startDestination: String,
     recordNavStack: Boolean,
     restoreStack: Boolean,
+    autoStartStudy: Boolean,
+    onAutoStartConsumed: () -> Unit,
     settingsRepository: SettingsRepository,
     modifier: Modifier = Modifier
 ) {
     val navController = rememberNavController()
+    // 恢复逻辑完成后置 true：直达导航要等它，避免把学习页压在恢复栈下面
+    var navReady by remember { mutableStateOf(false) }
 
     // 恢复：热启动（进程未被终止后重进，如系统回收了 Activity）时，把
     // 上次退出的页面一层层推回去（首项 HOME 已是起点）。冷启动跳过，
     // 保证从主页开始。先等首条栈条目出现（graph 就绪的信号），再导航，
     // 避免过早 navigate 抛异常。旧格式数据里可能有连续重复路由，先压缩再导航。
+    // 无论走没走恢复，最后都放行 navReady。
     LaunchedEffect(startDestination, restoreStack) {
-        if (!restoreStack) return@LaunchedEffect
-        val saved = settingsRepository.navStack.firstOrNull()
-        if (saved.isNullOrEmpty() || saved.size < 2) return@LaunchedEffect
-        val routes = saved.filterIndexed { i, r -> i == 0 || r != saved[i - 1] }
-        navController.currentBackStackEntryFlow.first()
-        routes.drop(1).forEach { route ->
-            runCatching { navController.navigate(route) }
+        if (restoreStack) {
+            val saved = settingsRepository.navStack.firstOrNull()
+            if (!saved.isNullOrEmpty() && saved.size >= 2) {
+                val routes = saved.filterIndexed { i, r -> i == 0 || r != saved[i - 1] }
+                navController.currentBackStackEntryFlow.first()
+                routes.drop(1).forEach { route ->
+                    runCatching { navController.navigate(route) }
+                }
+            }
+        }
+        navReady = true
+    }
+
+    // 直达：通知点进来（extra 标记）时直接进学习页，自带断点续背。
+    // 键上 navReady 等恢复走完再导航；launchSingleTop 防止已在学习页时叠两层；
+    // 引导未完成（start 不是 HOME）时只消费不导航。
+    LaunchedEffect(autoStartStudy, navReady) {
+        if (!autoStartStudy || !navReady) return@LaunchedEffect
+        onAutoStartConsumed()
+        if (startDestination == Destinations.HOME) {
+            navController.currentBackStackEntryFlow.first()
+            runCatching {
+                navController.navigate(Destinations.STUDY) { launchSingleTop = true }
+            }
         }
     }
 
@@ -135,7 +164,8 @@ private fun AppNavHost(
                         navController.navigate(Destinations.HOME) {
                             popUpTo(Destinations.ONBOARDING) { inclusive = true }
                         }
-                    }
+                    },
+                    onOpenData = { navController.navigate(Destinations.DATA) }
                 )
             }
 

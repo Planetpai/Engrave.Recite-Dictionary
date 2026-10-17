@@ -25,6 +25,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 
+import top.southfish.engrave.ui.components.PageDots
 import top.southfish.engrave.ui.components.formatProgress
 import top.southfish.engrave.ui.components.rememberRotaryScrollable
 import top.southfish.engrave.ui.profile.ProfileContent
@@ -66,6 +67,8 @@ fun HomeScreen(
     val homeListState = rememberLazyListState()
     val profileListState = rememberLazyListState()
 
+    // 表圈/滚轮滚动全屏只挂这一处：motion listener 单槽位，内层页面再挂会把
+    // 这里的覆盖掉（这正是首页滚轮失灵的根因）。目标列表由重组自动更新。
     rememberRotaryScrollable(
         state = if (pagerState.currentPage == 0) homeListState else profileListState
     )
@@ -73,6 +76,7 @@ fun HomeScreen(
     Scaffold(
         modifier = modifier,
                     ) {
+        Box(Modifier.fillMaxSize()) {
         HorizontalPager(state = pagerState, modifier = Modifier.fillMaxSize()) { page ->
             when (page) {
                 0 -> HomeContent(
@@ -95,6 +99,13 @@ fun HomeScreen(
                 )
             }
         }
+            PageDots(
+                pagerState = pagerState,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 8.dp)
+            )
+        }
     }
 }
 
@@ -107,8 +118,6 @@ private fun HomeContent(
     onOpenMistakes: () -> Unit,
     listState: LazyListState
 ) {
-    rememberRotaryScrollable(listState, enabled = false) // 表圈由外层按当前页接管
-
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         state = listState,

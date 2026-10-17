@@ -39,8 +39,9 @@ import androidx.wear.compose.material.MaterialTheme
 import androidx.wear.compose.material.PositionIndicator
 import androidx.wear.compose.material.Scaffold
 import androidx.wear.compose.material.Text
-import androidx.wear.compose.material.TimeText
+import top.southfish.engrave.ui.components.AnimatedTimeText
 import top.southfish.engrave.ui.components.rememberRotaryScrollable
+import top.southfish.engrave.ui.components.rememberTimeTextVisible
 import top.southfish.engrave.ui.vocabViewModel
 import java.io.File
 
@@ -70,6 +71,7 @@ fun FilePickerScreen(
     val state by viewModel.uiState.collectAsState()
     val listState = rememberScalingLazyListState()
     rememberRotaryScrollable(listState)
+    val timeVisible = rememberTimeTextVisible(listState)
 
     val lifecycleOwner = LocalLifecycleOwner.current
     // 从系统设置授权回来时（ON_RESUME）重新检查权限并刷新目录
@@ -104,7 +106,7 @@ fun FilePickerScreen(
 
     Scaffold(
         modifier = modifier,
-        timeText = { TimeText() },
+        timeText = { AnimatedTimeText(timeVisible) },
         positionIndicator = { PositionIndicator(scalingLazyListState = listState) }
     ) {
         ScalingLazyColumn(

@@ -88,8 +88,13 @@ class SearchViewModel(
             if (q.isBlank()) {
                 flowOf(emptyList<SearchWordResult>() to emptyList<PhraseEntry>())
             } else {
-                // 本地 sqlite 查询，直接出结果；空列表就是“没有匹配”
-                flowOf(assembleWordResults(dictRepository.search(q)) to dictRepository.searchPhrases(q))
+                // 本地 sqlite 查询，直接出结果；空列表就是“没有匹配”。
+                // 中文查询不带变形标注条——变形条是英文词形导航用的，
+                // 中文搜释义时「xx 的过去分词」这类标注只会干扰阅读
+                flowOf(
+                    assembleWordResults(dictRepository.search(q), withInflectionHints = q.isAsciiOnly()) to
+                        dictRepository.searchPhrases(q)
+                )
             }
         },
         searchDao.observeRecent(HISTORY_LIMIT)
@@ -161,11 +166,16 @@ class SearchViewModel(
      * 组装单词结果：每条词条原样保留；若它是变形词（exchange 含 0:原型 且
      * 原型≠自身），紧随其后追加一条「变形标注条」——同词名、标注原型关系、
      * 点击跳原型详情。搜原型词不带出变形词（原型 exchange 里没有 0: 段）。
+     * [withInflectionHints]=false（中文查询）时不追加变形条。
      */
-    private fun assembleWordResults(entries: List<DictEntry>): List<SearchWordResult> {
+    private fun assembleWordResults(
+        entries: List<DictEntry>,
+        withInflectionHints: Boolean
+    ): List<SearchWordResult> {
         val out = ArrayList<SearchWordResult>(entries.size + 4)
         for (entry in entries) {
             out.add(SearchWordResult(entry))
+            if (!withInflectionHints) continue
             val parsed = DictRepository.parseExchange(entry.exchange) ?: continue
             val lemma = parsed.lemma ?: continue
             if (lemma.equals(entry.term, ignoreCase = true)) continue
@@ -181,5 +191,8 @@ class SearchViewModel(
     private companion object {
         const val HISTORY_LIMIT = 20
         const val SEARCH_DEBOUNCE_MS = 200L
+
+        /** 全 ASCII 才算英文词头检索；含任何非 ASCII 字符（中文等）都不带变形条。 */
+        fun String.isAsciiOnly(): Boolean = all { it.code < 128 }
     }
 }

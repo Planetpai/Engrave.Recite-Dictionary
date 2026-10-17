@@ -30,6 +30,8 @@ class ReminderReceiver : BroadcastReceiver() {
             // （= 运行时 packageName）下，这里按包名拼出全类名
             Intent().setClassName(appContext.packageName, appContext.packageName + ".MainActivity").apply {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                // 点通知直达学习页：MainActivity 检测此 extra 后交给导航层
+                putExtra(ReminderIntents.EXTRA_AUTO_START_STUDY, true)
             },
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )

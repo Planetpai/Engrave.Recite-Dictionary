@@ -1,33 +1,48 @@
 package top.southfish.engrave.ui.settings
 
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.launch
 import top.southfish.engrave.domain.model.DefinitionDisplay
+import top.southfish.engrave.phone.BuildConfig
 import top.southfish.engrave.ui.components.Chip
 import top.southfish.engrave.ui.components.ListHeader
 import top.southfish.engrave.ui.components.rememberRotaryScrollable
 import top.southfish.engrave.ui.components.timeTextPadding
 import top.southfish.engrave.ui.vocabViewModel
+import top.southfish.engrave.update.UpdateChecker
 
 /**
- * 「其他」设置：从背单词设置里拆出的低频项——详情页释义显示、单词发音。
+ * 「其他」设置：从背单词设置里拆出的低频项——详情页释义显示、单词发音、
+ * 检查更新。
  *
  * 单词发音仅控制学习卡片展示英文词头时是否自动朗读，与详情页无关
  * （详情页点词头朗读始终可用）。系统缺英文 TTS 语音数据时禁止开启，
  * 并在下方给出灰色提示。
+ *
+ * 检查更新只在点击时联网（不自动检测），查 GitHub Releases（含预发行版），
+ * 只认 android 包；发现新版本显示更新说明，下载交给浏览器。
  */
 @Composable
 fun OtherSettingsScreen(modifier: Modifier = Modifier) {
@@ -62,6 +77,12 @@ private fun OtherSettingsContent(
 ) {
     val listState = rememberLazyListState()
     rememberRotaryScrollable(listState)
+
+    // 检查更新：点击才联网，结果留在页面上直到下次点按重查
+    var updateResult by remember { mutableStateOf<UpdateChecker.Result?>(null) }
+    var checking by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    val context = LocalContext.current
 
     Scaffold(modifier = modifier) {
         LazyColumn(
@@ -140,6 +161,105 @@ private fun OtherSettingsContent(
                     )
                 }
             }
+
+            item {
+                Text(
+                    "检查更新",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 10.dp)
+                )
+            }
+            item {
+                Chip(
+                    label = { Text(updateStatusLabel(updateResult, checking)) },
+                    onClick = {
+                        if (!checking) {
+                            checking = true
+                            scope.launch {
+                                updateResult = UpdateChecker(
+                                    currentVersion = BuildConfig.VERSION_NAME,
+                                    flavor = "android"
+                                ).check()
+                                checking = false
+                            }
+                        }
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp)
+                )
+            }
+            when (val result = updateResult) {
+                is UpdateChecker.Result.UpdateAvailable -> {
+                    item {
+                        Text(
+                            "最新版 ${result.version}",
+                            style = MaterialTheme.typography.titleMedium,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 6.dp)
+                        )
+                    }
+                    if (result.notes.isNotBlank()) {
+                        item {
+                            Text(
+                                result.notes,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 12,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+                    }
+                    item {
+                        Button(
+                            onClick = {
+                                runCatching {
+                                    context.startActivity(
+                                        Intent(Intent.ACTION_VIEW, Uri.parse(result.downloadUrl))
+                                    )
+                                }
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 40.dp)
+                                .padding(top = 4.dp)
+                        ) {
+                            Text("去下载")
+                        }
+                    }
+                }
+
+                is UpdateChecker.Result.NetworkError -> {
+                    item {
+                        Text(
+                            "网络连接失败（${result.detail}）",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 4.dp)
+                        )
+                    }
+                }
+
+                else -> Unit
+            }
         }
     }
+}
+
+/** 检查更新那行的文案：空闲提示、检查中、结果各一种。 */
+private fun updateStatusLabel(result: UpdateChecker.Result?, checking: Boolean): String = when {
+    checking -> "检查中…"
+    result is UpdateChecker.Result.UpToDate -> "已是最新版"
+    result is UpdateChecker.Result.NetworkError -> "网络错误 · 点按重试"
+    result is UpdateChecker.Result.UpdateAvailable -> "发现新版本 ${result.version}"
+    else -> "检查是否有新版本"
 }

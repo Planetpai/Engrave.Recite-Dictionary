@@ -14,9 +14,11 @@ android {
         minSdk 26
         // 29：与 Wear 版一致，传统存储读词书文件，无需 SAF
         targetSdk 29
-        versionCode 2
-        versionName "0.3beta.1"
+        versionCode 3
+        versionName "0.3beta.2"
     }
+
+    buildFeatures { buildConfig true }
 
     buildTypes {
         release {
@@ -24,6 +26,15 @@ android {
             // 侧载分发包用 debug 密钥签名，与 Wear 版策略一致
             signingConfig signingConfigs.debug
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+    // release 产物统一命名 Engrave-版本号-android.apk：
+    // 「检查更新」按资产名正则 Engrave-版本号-端别.apk 匹配新版本
+    applicationVariants.all { variant ->
+        variant.outputs.all {
+            if (variant.buildType.name == 'release') {
+                outputFileName = "Engrave-${variant.versionName}-android.apk"
+            }
         }
     }
     compileOptions {

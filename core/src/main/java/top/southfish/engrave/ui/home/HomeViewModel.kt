@@ -37,13 +37,13 @@ data class HomeUiState(
     val hasAnythingToStudy: Boolean
         get() = stats.dueNow > 0 || newRemainingToday > 0
 
-    /** 按钮永远可点：有额度显示「开始学习 N」，没有但有断点显示「继续背单词」。 */
+    /** 按钮永远可点：统一显示「开始学习」（2026-10-16 起不再带数量）；没额度但有断点显示「继续背单词」。 */
     val buttonEnabled: Boolean
         get() = !isLoading
 
     val buttonLabel: String
         get() = when {
-            sessionSize > 0 -> "开始学习 $sessionSize"
+            sessionSize > 0 -> "开始学习"
             resumable -> "继续背单词"
             else -> "继续学习"
         }

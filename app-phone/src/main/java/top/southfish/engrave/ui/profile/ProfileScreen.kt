@@ -49,7 +49,6 @@ import top.southfish.engrave.ui.components.ListHeader
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import top.southfish.engrave.domain.model.UserProfile
-import top.southfish.engrave.ui.components.rememberRotaryScrollable
 import top.southfish.engrave.ui.vocabViewModel
 import kotlinx.coroutines.delay
 
@@ -124,7 +123,7 @@ fun ProfileContent(
         }
     }
 
-    rememberRotaryScrollable(listState)
+    // 滚轮滚动由外层（HomeScreen 双页横滑）统一接管，这里不再单独挂
 
     LazyColumn(
         modifier = modifier.fillMaxSize(),

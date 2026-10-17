@@ -34,10 +34,11 @@ import androidx.wear.compose.material.MaterialTheme
 import androidx.wear.compose.material.PositionIndicator
 import androidx.wear.compose.material.Scaffold
 import androidx.wear.compose.material.Text
-import androidx.wear.compose.material.TimeText
+import top.southfish.engrave.ui.components.AnimatedTimeText
 import top.southfish.engrave.ui.components.NumberWheel
 import top.southfish.engrave.ui.components.ReminderWheels
 import top.southfish.engrave.ui.components.rememberRotaryScrollable
+import top.southfish.engrave.ui.components.rememberTimeTextVisible
 import top.southfish.engrave.reminder.ReminderScheduler
 import top.southfish.engrave.ui.settings.reminderLabel
 import top.southfish.engrave.ui.vocabViewModel
@@ -49,6 +50,7 @@ import top.southfish.engrave.ui.vocabViewModel
 @Composable
 fun OnboardingScreen(
     onDone: () -> Unit,
+    onOpenData: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val viewModel = vocabViewModel<OnboardingViewModel> { container ->
@@ -61,6 +63,7 @@ fun OnboardingScreen(
     val state by viewModel.uiState.collectAsState()
     val listState = rememberScalingLazyListState()
     rememberRotaryScrollable(listState)
+    val timeVisible = rememberTimeTextVisible(listState)
 
     val context = androidx.compose.ui.platform.LocalContext.current
     var openNotificationSettings by remember { mutableStateOf(false) }
@@ -108,7 +111,7 @@ fun OnboardingScreen(
 
     Scaffold(
         modifier = modifier,
-        timeText = { TimeText() },
+        timeText = { AnimatedTimeText(timeVisible) },
         positionIndicator = { PositionIndicator(scalingLazyListState = listState) }
     ) {
         Crossfade(targetState = state.step, label = "onboarding-step") { step ->
@@ -154,6 +157,31 @@ fun OnboardingScreen(
                                     textAlign = TextAlign.Center,
                                     modifier = Modifier.fillMaxWidth()
                                 )
+                            }
+                        }
+                        // 老用户重装/换机：不用选词书，直接导入备份恢复
+                        item {
+                            Text(
+                                "或者",
+                                style = MaterialTheme.typography.caption2,
+                                color = MaterialTheme.colors.onSurfaceVariant,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 6.dp)
+                            )
+                        }
+                        item {
+                            Button(
+                                onClick = onOpenData,
+                                colors = ButtonDefaults.buttonColors(
+                                    backgroundColor = MaterialTheme.colors.surface
+                                ),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp)
+                            ) {
+                                Text("导入数据")
                             }
                         }
                         item { NextButton(state.canNext, viewModel::next) }

@@ -39,11 +39,28 @@
 | 📚 词书管理      | 内置初中/高中词书；支持从设备任意文件夹导入自制备 JSON 词书，可导出备份（）[词典工具](https://github.com/SouthFishowo/Engrave_DictionaryConverter) |
 | 👤 个人资料      | 头像（长按从相册选）、昵称（长按编辑）、连续天数与学习统计                                                                                |
 
-平台与版本：Wear OS · Kotlin + Jetpack Compose · 包名 `top.southfish.engrave` · 版本 `0.3beta.1`
+平台与版本：Wear OS · Kotlin + Jetpack Compose · 包名 `top.southfish.engrave` · 版本 `0.3beta.2`
 
 ---
 
 ## 更新日志
+
+### v0.3beta.2
+
+**新增**
+- 表盘卡片新增词书进度圆环与待复习数量，点按直达学习页
+- 提醒通知直达学习页
+- 卡片正面显示例句；第一轮正面滑动即可选「会 / 不会」
+- 新增「检查更新」
+- 引导页新增「导入数据」
+- 翻页小圆点
+- 时间条自动显隐
+
+**优化**
+- 优化了已知问题
+
+**修复**
+- 数据导出导入时，词书从 0 开始选词
 
 ### v0.3beta.1
 

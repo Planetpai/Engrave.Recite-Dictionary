@@ -15,9 +15,11 @@ android {
         // 设置→安全与隐私→许可管理器→文件 里，用户才能手动授予存储权限；
         // targetSdk 30+ 在手表上没有任何用户可授予的文件权限（无所有文件访问页、SAF 是空壳）
         targetSdk 29
-        versionCode 5
-        versionName "0.3beta.1"
+        versionCode 6
+        versionName "0.3beta.2"
     }
+
+    buildFeatures { buildConfig true }
 
     buildTypes {
         release {
@@ -25,6 +27,15 @@ android {
             // 侧载分发包用 debug 密钥签名：可直接覆盖手表上的旧 debug 版，免卸载保数据
             signingConfig signingConfigs.debug
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+    // release 产物统一命名 Engrave-版本号-wearos.apk：
+    // 「检查更新」按资产名正则 Engrave-版本号-端别.apk 匹配新版本
+    applicationVariants.all { variant ->
+        variant.outputs.all {
+            if (variant.buildType.name == 'release') {
+                outputFileName = "Engrave-${variant.versionName}-wearos.apk"
+            }
         }
     }
     compileOptions {
@@ -69,6 +80,12 @@ dependencies {
     implementation 'androidx.wear.compose:compose-material:1.2.1'
     implementation 'androidx.wear.compose:compose-foundation:1.2.1'
     implementation 'androidx.wear.compose:compose-navigation:1.2.1'
+
+    // Tile（左滑一屏的卡片）+ 表盘复杂功能（待复习数）
+    implementation 'androidx.wear.tiles:tiles:1.1.0'
+    implementation 'androidx.wear.watchface:watchface-complications-data-source-ktx:1.1.1'
+    // TileService 的回调是 ListenableFuture，用协程桥接
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-guava:1.7.3'
 
     // Compose
     implementation platform('androidx.compose:compose-bom:2023.10.01')

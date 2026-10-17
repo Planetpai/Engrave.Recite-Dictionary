@@ -30,8 +30,9 @@ import androidx.wear.compose.material.MaterialTheme
 import androidx.wear.compose.material.PositionIndicator
 import androidx.wear.compose.material.Scaffold
 import androidx.wear.compose.material.Text
-import androidx.wear.compose.material.TimeText
+import top.southfish.engrave.ui.components.AnimatedTimeText
 import top.southfish.engrave.ui.components.rememberRotaryScrollable
+import top.southfish.engrave.ui.components.rememberTimeTextVisible
 import top.southfish.engrave.ui.vocabViewModel
 
 /** 需要用户确认的破坏性操作。 */
@@ -59,6 +60,7 @@ fun DataScreen(
     val state by viewModel.uiState.collectAsState()
     val listState = rememberScalingLazyListState()
     rememberRotaryScrollable(listState)
+    val timeVisible = rememberTimeTextVisible(listState)
 
     var confirm by remember { mutableStateOf<ConfirmAction?>(null) }
 
@@ -71,7 +73,7 @@ fun DataScreen(
 
     Scaffold(
         modifier = modifier,
-        timeText = { TimeText() },
+        timeText = { AnimatedTimeText(timeVisible) },
         positionIndicator = { PositionIndicator(scalingLazyListState = listState) }
     ) {
         ScalingLazyColumn(

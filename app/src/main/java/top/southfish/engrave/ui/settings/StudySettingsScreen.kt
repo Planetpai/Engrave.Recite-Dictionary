@@ -33,10 +33,11 @@ import androidx.wear.compose.material.MaterialTheme
 import androidx.wear.compose.material.PositionIndicator
 import androidx.wear.compose.material.Scaffold
 import androidx.wear.compose.material.Text
-import androidx.wear.compose.material.TimeText
+import top.southfish.engrave.ui.components.AnimatedTimeText
 import top.southfish.engrave.reminder.ReminderScheduler
 import top.southfish.engrave.ui.components.NumberWheel
 import top.southfish.engrave.ui.components.rememberRotaryScrollable
+import top.southfish.engrave.ui.components.rememberTimeTextVisible
 import top.southfish.engrave.ui.vocabViewModel
 
 fun reminderLabel(minutes: Int): String = "%02d:%02d".format(minutes / 60, minutes % 60)
@@ -142,6 +143,7 @@ private fun StudySettingsContent(
 ) {
     val listState = rememberScalingLazyListState()
     rememberRotaryScrollable(listState)
+    val timeVisible = rememberTimeTextVisible(listState)
 
     // 转轮的本地选中值：走到这里 state 必然已加载，初始化值就是真实设置；
     // 提醒关闭时给个可编辑的默认时间。
@@ -159,7 +161,7 @@ private fun StudySettingsContent(
 
     Scaffold(
         modifier = modifier,
-        timeText = { TimeText() },
+        timeText = { AnimatedTimeText(timeVisible) },
         positionIndicator = { PositionIndicator(scalingLazyListState = listState) }
     ) {
         ScalingLazyColumn(

@@ -47,6 +47,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 
 import top.southfish.engrave.data.local.entity.SearchHistoryEntity
+import top.southfish.engrave.ui.components.PageDots
 import top.southfish.engrave.ui.components.SwipeLeftRow
 import top.southfish.engrave.ui.components.rememberRotaryScrollHandler
 import top.southfish.engrave.ui.vocabViewModel
@@ -133,6 +134,7 @@ fun SearchScreen(
     Scaffold(
         modifier = modifier,
                     ) {
+        Box(Modifier.fillMaxSize()) {
         Column(
             Modifier
                 .fillMaxSize()
@@ -162,6 +164,15 @@ fun SearchScreen(
                         onOpenPhrase = { viewModel.openWord(it.phrase, onOpenWord) }
                     )
                 }
+            }
+        }
+            if (!state.query.isBlank()) {
+                PageDots(
+                    pagerState = pagerState,
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(bottom = 8.dp)
+                )
             }
         }
     }

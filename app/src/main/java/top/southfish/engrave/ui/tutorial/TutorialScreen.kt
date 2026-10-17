@@ -28,13 +28,16 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.wear.compose.foundation.lazy.ScalingLazyColumn
+import androidx.wear.compose.foundation.lazy.ScalingLazyListState
 import androidx.wear.compose.foundation.lazy.items
+import androidx.wear.compose.foundation.lazy.rememberScalingLazyListState
 import androidx.wear.compose.material.Button
 import androidx.wear.compose.material.MaterialTheme
 import androidx.wear.compose.material.Scaffold
 import androidx.wear.compose.material.Text
-import androidx.wear.compose.material.TimeText
+import top.southfish.engrave.ui.components.AnimatedTimeText
 import kotlinx.coroutines.delay
+import top.southfish.engrave.ui.components.rememberTimeTextVisible
 import top.southfish.engrave.ui.rememberAppContainer
 import top.southfish.engrave.ui.study.CardBody
 import top.southfish.engrave.ui.study.CardCaption
@@ -76,12 +79,17 @@ fun TutorialScreen(
     var undoCardGen by remember(stepIndex) { mutableIntStateOf(0) }
     var undoReplay by remember(stepIndex) { mutableStateOf<SwipeDirection?>(null) }
 
+    // 完成页的手势速查是滚动列表，时间条跟随它显隐；主流程不滚动（state
+    // 停在顶部），时间条照常显示
+    val doneListState = rememberScalingLazyListState()
+    val timeVisible = rememberTimeTextVisible(doneListState)
+
     Scaffold(
         modifier = modifier,
-        timeText = { TimeText() }
+        timeText = { AnimatedTimeText(timeVisible) }
     ) {
         if (step == TutorialStep.DONE) {
-            DonePage(onDone = onDone)
+            DonePage(onDone = onDone, listState = doneListState)
             return@Scaffold
         }
 
@@ -422,9 +430,10 @@ private fun DetailStep(onComplete: (String) -> Unit) {
 
 /** 完成页：手势速查（保留原静态版使用指引的全部信息）+ 完成按钮。 */
 @Composable
-private fun DonePage(onDone: () -> Unit) {
+private fun DonePage(onDone: () -> Unit, listState: ScalingLazyListState) {
     ScalingLazyColumn(
         modifier = Modifier.fillMaxSize(),
+        state = listState,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         item {

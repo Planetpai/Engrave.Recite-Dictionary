@@ -302,14 +302,22 @@ class StudyViewModel(
         }
     }
 
-    /** 点击翻面。拼写卡也能翻：正面释义、背面选词填空，反复切换。 */
+    /**
+     * 点击翻面。拼写卡反复切换（正面释义、背面选词填空）；背新词第一遍
+     * （看英背中）也反复切换——翻回正面再想一遍，两面来回记。
+     * 其余卡单向：翻过面就看答案了，不许藏回去。
+     */
     fun flip() {
         val state = _uiState.value as? StudyUiState.Testing ?: return
         val card = state.card
-        if (card.kind != CardKind.SPELLING && card.flipped) return
+        val canToggle = state.phase == TestPhase.FORMAL &&
+            card.kind == CardKind.EN_TO_ZH &&
+            card.encounter == 1
+        if (!canToggle && card.kind != CardKind.SPELLING && card.flipped) return
         // 入场保护期：补完拼写的那一下点击不该把刚出现的下一张卡翻过来
         if (timeProvider.now() - cardShownAt < FLIP_GRACE_MILLIS) return
-        val flipped = card.copy(flipped = true)
+        val target = if (canToggle) !card.flipped else true
+        val flipped = card.copy(flipped = target)
         testQueue[0] = flipped
         _uiState.value = state.copy(card = flipped)
     }

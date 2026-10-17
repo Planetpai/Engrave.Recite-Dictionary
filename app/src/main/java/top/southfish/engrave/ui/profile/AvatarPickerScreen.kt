@@ -31,6 +31,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.shape.CircleShape
@@ -56,8 +57,9 @@ import androidx.wear.compose.material.CompactButton
 import androidx.wear.compose.material.CircularProgressIndicator
 import androidx.wear.compose.material.MaterialTheme
 import androidx.wear.compose.material.Text
-import androidx.wear.compose.material.TimeText
+import top.southfish.engrave.ui.components.AnimatedTimeText
 import top.southfish.engrave.ui.components.rememberRotaryScrollable
+import top.southfish.engrave.ui.components.rememberTimeTextVisible
 import top.southfish.engrave.ui.vocabViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -145,8 +147,12 @@ fun AvatarPickerScreen(
         images = withContext(Dispatchers.IO) { queryGalleryImages(context) }
     }
 
+    // 相册网格的滚动状态提在页面级：时间条跟随网格（在顶部或往回滑时显示）
+    val gridState = rememberLazyGridState()
+    val timeVisible = rememberTimeTextVisible(gridState)
+
     Box(modifier.fillMaxSize()) {
-        TimeText()
+        AnimatedTimeText(timeVisible)
 
         when {
             !inAppMode -> {
@@ -220,6 +226,7 @@ fun AvatarPickerScreen(
 
             else -> GalleryGrid(
                 images = images!!,
+                gridState = gridState,
                 onOpenSystemGallery = { launchVendorGallery() },
                 onPick = { uri -> viewModel.save(uri) { ok -> onDone(ok) } }
             )
@@ -234,10 +241,10 @@ fun AvatarPickerScreen(
 @Composable
 private fun GalleryGrid(
     images: List<GalleryImage>,
+    gridState: LazyGridState,
     onOpenSystemGallery: () -> Unit,
     onPick: (Uri) -> Unit
 ) {
-    val gridState = rememberLazyGridState()
     rememberRotaryScrollable(gridState)
 
     androidx.compose.foundation.lazy.grid.LazyVerticalGrid(

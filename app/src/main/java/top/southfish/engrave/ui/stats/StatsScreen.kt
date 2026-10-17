@@ -23,6 +23,7 @@ import androidx.wear.compose.material.Text
 import androidx.wear.compose.material.TimeText
 import top.southfish.engrave.ui.components.formatRate
 import top.southfish.engrave.ui.components.rememberRotaryScrollable
+import top.southfish.engrave.ui.components.rememberTimeTextVisible
 import top.southfish.engrave.ui.vocabViewModel
 
 @Composable
@@ -37,10 +38,11 @@ fun StatsScreen(modifier: Modifier = Modifier) {
 
     val listState = rememberScalingLazyListState()
     rememberRotaryScrollable(listState)
+    val timeVisible = rememberTimeTextVisible(listState)
 
     Scaffold(
         modifier = modifier,
-        timeText = { TimeText() },
+        timeText = { if (timeVisible) TimeText() },
         positionIndicator = { PositionIndicator(scalingLazyListState = listState) }
     ) {
         ScalingLazyColumn(

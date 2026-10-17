@@ -231,6 +231,18 @@ SM-2 变体：`Grade`（AGAIN/HARD/GOOD/EASY）→ 下次间隔与熟练度。�
 
 列表底部：应用图标（`PackageManager.getApplicationIcon`，AdaptiveIcon 不能 painterResource 直读）→ 「刻词 v<versionName>」（`getPackageInfo` 运行时读）→ 「开发者 SouthFish」→ 三平台徽章 Q/zcode…（qoder/zcode/trae，首字母圆形徽章）→ 开源声明（Compose/AndroidX/Room Apache-2.0、ECDICT MIT）。版本发布后新增开源依赖时**必须同步更新这段声明**。
 
+### 6.13 表盘 Tile 与复杂功能（`tile/`，仅 `:app`，2026-10-16 新增）
+
+- tiles 1.1.0 API 坑：`TimelineBuilders.TimelineEntry` 是顶层类；布尔用 `AndroidBooleanExtra.Builder().setValue(true)`；复杂功能 1.1.1 无 plainText 工厂，用 `PlainComplicationText.Builder(s).build()`；`ShortTextComplicationData` 同为顶层类。
+- Tile 圆环用两条 `ArcLine` 独立叠放（同一容器内多弧段是首尾相接、非叠加）；环贴屏缘留 14dp；只统计「待复习」与今日已完成。
+- 点击带直达 extra 进学习页；构建失败时回退纯文字版并写 `EngraveTile` 日志。
+
+### 6.14 表冠滚动与页面指示（`ui/components/RotarySupport.kt`，2026-10-16 重做）
+
+- **分发顺序为后注册优先（LIFO）**：栈顶页面先取事件，返回 false 才顺延。先注册先吃会让后台残留页面永远截走表冠事件（曾致首页初始页滚轮「必死」）。
+- 滚动为「累积 + 每帧追赶」：积压 ≥ 两屏一帧到位（猛转），否则按视口高度百分比滑翔（默认 20%）；**真实滚动才 `CLOCK_TICK` 震动**，滚到尽头自然安静。
+- 翻页小圆点用官方 `HorizontalPageIndicator`（圆屏自动弧形）；自动隐藏需自加一层淡入淡出（官方只管绘制）。**优先用官方组件，自绘仅在官方确实无法满足时**。
+
 ---
 
 ## 7. 数据层
