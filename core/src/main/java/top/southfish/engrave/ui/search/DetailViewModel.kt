@@ -9,6 +9,7 @@ import top.southfish.engrave.domain.model.DefinitionDisplay
 import top.southfish.engrave.domain.model.DictEntry
 import top.southfish.engrave.domain.model.ExchangeInfo
 import top.southfish.engrave.domain.model.PhraseEntry
+import top.southfish.engrave.domain.model.RelationEntry
 import top.southfish.engrave.domain.model.Word
 import top.southfish.engrave.domain.repository.SettingsRepository
 import top.southfish.engrave.domain.repository.WordRepository
@@ -35,7 +36,11 @@ data class WordDetailUiState(
     /** 词头作为短语命中时的短语数据（单词查不到时按短语详情渲染）。 */
     val phrase: PhraseEntry? = null,
     /** 关联短语（挂在该词下的短语）。 */
-    val phrases: List<PhraseEntry> = emptyList()
+    val phrases: List<PhraseEntry> = emptyList(),
+    /** 近义词（relation 表 syn，来自 WordNet）。 */
+    val synonyms: List<RelationEntry> = emptyList(),
+    /** 反义词（relation 表 ant，来自 WordNet）。 */
+    val antonyms: List<RelationEntry> = emptyList()
 )
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -102,11 +107,18 @@ class WordDetailViewModel(
                     )
                 )
                 val derivatives = runCatching { dictRepository.derivatives(gate.term) }.getOrDefault(emptyList())
-                // 词形变化（原型+变形）与关联短语并行，和主释义/派生词互不依赖
-                val (exchangeInfo, phrases) = kotlinx.coroutines.coroutineScope {
+                // 词形变化、关联短语、近义/反义词互不依赖，并行跑
+                val details = kotlinx.coroutines.coroutineScope {
                     val exDeferred = async { runCatching { dictRepository.exchangeInfo(gate.term) }.getOrNull() }
                     val phrDeferred = async { runCatching { dictRepository.relatedPhrases(gate.term) }.getOrDefault(emptyList()) }
-                    exDeferred.await() to phrDeferred.await()
+                    val synDeferred = async { runCatching { dictRepository.synonyms(gate.term) }.getOrDefault(emptyList()) }
+                    val antDeferred = async { runCatching { dictRepository.antonyms(gate.term) }.getOrDefault(emptyList()) }
+                    Details(
+                        exchangeInfo = exDeferred.await(),
+                        phrases = phrDeferred.await(),
+                        synonyms = synDeferred.await(),
+                        antonyms = antDeferred.await()
+                    )
                 }
                 emit(
                     WordDetailUiState(
@@ -116,8 +128,10 @@ class WordDetailViewModel(
                         inMistakes = gate.inMistakes,
                         display = gate.display,
                         derivatives = derivatives,
-                        exchangeInfo = exchangeInfo,
-                        phrases = phrases
+                        exchangeInfo = details.exchangeInfo,
+                        phrases = details.phrases,
+                        synonyms = details.synonyms,
+                        antonyms = details.antonyms
                     )
                 )
             }
@@ -160,4 +174,12 @@ private data class Gate(
     val display: DefinitionDisplay,
     val inMistakes: Boolean,
     val term: String
+)
+
+/** 详情页「二段加载」的附加数据：词形变化 + 关联短语 + 近义/反义词。 */
+private data class Details(
+    val exchangeInfo: ExchangeInfo?,
+    val phrases: List<PhraseEntry>,
+    val synonyms: List<RelationEntry>,
+    val antonyms: List<RelationEntry>
 )

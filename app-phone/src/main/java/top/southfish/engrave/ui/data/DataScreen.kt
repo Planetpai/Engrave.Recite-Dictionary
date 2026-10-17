@@ -229,7 +229,10 @@ private fun ConfirmOverlay(
             ) { Text(confirmLabel) }
             Button(
                 onClick = onDismiss,
-                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surface),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    contentColor = MaterialTheme.colorScheme.onSurface
+                ),
                 modifier = Modifier.fillMaxWidth()
             ) { Text("取消") }
         }

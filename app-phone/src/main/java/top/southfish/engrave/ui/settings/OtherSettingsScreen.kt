@@ -182,7 +182,7 @@ private fun OtherSettingsContent(
                             scope.launch {
                                 updateResult = UpdateChecker(
                                     currentVersion = BuildConfig.VERSION_NAME,
-                                    flavor = "android"
+                                    assetTag = "android"
                                 ).check()
                                 checking = false
                             }

@@ -3,6 +3,8 @@ package top.southfish.engrave.ui.search
 import android.text.Editable
 import android.text.InputType
 import android.text.TextWatcher
+import android.view.MotionEvent
+import android.view.ViewConfiguration
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
 import android.widget.EditText
@@ -24,6 +26,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -52,8 +55,13 @@ import top.southfish.engrave.ui.components.SwipeLeftRow
 import top.southfish.engrave.ui.components.rememberDynamicRotaryScroll
 import top.southfish.engrave.ui.components.rememberTimeTextVisible
 import top.southfish.engrave.ui.vocabViewModel
+import top.southfish.engrave.BuildConfig
+import kotlin.math.abs
 
 private val SearchFieldBackground = Color(0xFF1B202A)
+
+/** 长按搜索框进翻译页的判定时长（执行清单 §8：≈600ms）。 */
+private const val LONG_PRESS_MILLIS = 600L
 
 /**
  * 搜索页：上面搜索框，下面历史 / 结果。
@@ -65,6 +73,7 @@ private val SearchFieldBackground = Color(0xFF1B202A)
 @Composable
 fun SearchScreen(
     onOpenWord: (String) -> Unit,
+    onOpenTranslate: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val viewModel = vocabViewModel<SearchViewModel> { container ->
@@ -160,7 +169,12 @@ fun SearchScreen(
                 .padding(top = 24.dp, start = 12.dp, end = 12.dp)
         ) {
             // 搜索框用原生 EditText（见 SearchField 内部说明）
-            SearchField(onValueChange = viewModel::onQueryChange)
+            // 长按进翻译页的入口只挂在带翻译版（BuildConfig.WITH_TRANS）上，
+            // 不带库版没有该入口（执行清单 B6）
+            SearchField(
+                onValueChange = viewModel::onQueryChange,
+                onLongPress = if (BuildConfig.WITH_TRANS) onOpenTranslate else null
+            )
 
             Box(Modifier.weight(1f)) {
                 if (state.query.isBlank()) {
@@ -208,10 +222,12 @@ fun SearchScreen(
  * 全屏编辑条会实时同步，不存在这个问题。
  */
 @Composable
-private fun SearchField(onValueChange: (String) -> Unit) {
+private fun SearchField(onValueChange: (String) -> Unit, onLongPress: (() -> Unit)? = null) {
     val textColor = MaterialTheme.colors.onSurface.toArgb()
     val hintColor = MaterialTheme.colors.onSurfaceVariant.toArgb()
     val horizontalPadding = with(LocalDensity.current) { 14.dp.roundToPx() }
+    // 回调随重组可能换实例，用 rememberUpdatedState 保证长按触发时用的是最新那个
+    val longPressAction by rememberUpdatedState(onLongPress)
 
     var editText by remember { mutableStateOf<EditText?>(null) }
 
@@ -265,6 +281,31 @@ private fun SearchField(onValueChange: (String) -> Unit) {
                         }
                     }
                     editText = this
+                    // 长按 ≈600ms 进翻译页：EditText 自带的长按被拿去选词了，
+                    // setOnLongClickListener 会和它抢、行为不稳，这里改用触摸计时 +
+                    // 位移取消（返回 false，不影响聚焦/光标/点击等原有交互）
+                    if (longPressAction != null) {
+                        val slop = ViewConfiguration.get(context).scaledTouchSlop.toFloat()
+                        var downX = 0f
+                        var downY = 0f
+                        val fire = Runnable { longPressAction?.invoke() }
+                        setOnTouchListener { v, event ->
+                            when (event.actionMasked) {
+                                MotionEvent.ACTION_DOWN -> {
+                                    downX = event.x
+                                    downY = event.y
+                                    v.postDelayed(fire, LONG_PRESS_MILLIS)
+                                }
+                                MotionEvent.ACTION_MOVE ->
+                                    if (abs(event.x - downX) > slop || abs(event.y - downY) > slop) {
+                                        v.removeCallbacks(fire)
+                                    }
+                                MotionEvent.ACTION_UP,
+                                MotionEvent.ACTION_CANCEL -> v.removeCallbacks(fire)
+                            }
+                            false
+                        }
+                    }
                     // 进页面自动聚焦并拉起键盘（等转场动画过去）
                     postDelayed(
                         {

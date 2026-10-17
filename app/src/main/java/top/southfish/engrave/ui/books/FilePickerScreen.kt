@@ -53,12 +53,15 @@ import java.io.File
  * 文件条目采用与搜单词结果一致的信息列表卡片（文件名 + 大小/日期/项数），
  * 一屏能看更多文件。[mode] 决定导入行为：
  * - [PickerMode.BOOK]：点词书 JSON 直接导入；
- * - [PickerMode.BACKUP]：点备份 JSON 弹确认后全量恢复（破坏性）。
+ * - [PickerMode.BACKUP]：点备份 JSON 弹确认后全量恢复（破坏性）；
+ * - [PickerMode.MODEL_ZIP]：点模型压缩包**不由本页处理**，只把文件交给
+ *   [onPicked]（翻译页自己解包导入，免授权目录也换成 files/translate）。
  */
 @Composable
 fun FilePickerScreen(
     onImported: () -> Unit = {},
     mode: PickerMode = PickerMode.BOOK,
+    onPicked: ((File) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val viewModel = vocabViewModel<FilePickerViewModel> { container ->
@@ -96,8 +99,13 @@ fun FilePickerScreen(
         )
     }
 
-    // 导入成功后停留片刻让用户看到结果，再自动返回来源页
-    LaunchedEffect(state.imported) {
+    // 导入成功后停留片刻让用户看到结果，再自动返回来源页；
+    // 模型 zip 模式下不导入，直接把选中的文件交回调用方
+    LaunchedEffect(state.imported, state.pickedFile) {
+        state.pickedFile?.let { picked ->
+            onPicked?.invoke(picked)
+            return@LaunchedEffect
+        }
         if (state.imported) {
             kotlinx.coroutines.delay(1500)
             onImported()
@@ -120,7 +128,11 @@ fun FilePickerScreen(
             item {
                 ListHeader {
                     Text(
-                        text = state.dir?.name ?: if (mode == PickerMode.BOOK) "选择词书文件" else "选择备份文件",
+                        text = state.dir?.name ?: when (mode) {
+                            PickerMode.BOOK -> "选择词书文件"
+                            PickerMode.BACKUP -> "选择备份文件"
+                            PickerMode.MODEL_ZIP -> "选择模型压缩包"
+                        },
                         style = MaterialTheme.typography.caption2,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
@@ -133,7 +145,11 @@ fun FilePickerScreen(
                 // 想浏览整个手表存储就点这个弹系统授权框
                 item {
                     Text(
-                        "在应用文件夹 books 里选 json\n授权后可从存储根目录浏览任意文件夹",
+                        if (mode == PickerMode.MODEL_ZIP) {
+                            "在应用文件夹 translate 里选 zip\n授权后可从存储根目录浏览任意文件夹"
+                        } else {
+                            "在应用文件夹 books 里选 json\n授权后可从存储根目录浏览任意文件夹"
+                        },
                         style = MaterialTheme.typography.caption2,
                         color = MaterialTheme.colors.onSurfaceVariant,
                         textAlign = TextAlign.Center,
@@ -208,6 +224,10 @@ fun FilePickerScreen(
                                 if (state.hasPermission) "这里没有备份文件\n把 vocab-backup 的 json 放进任意目录"
                                 else "这里没有备份文件\n把备份 json 推进 books 目录"
                             }
+                            mode == PickerMode.MODEL_ZIP -> {
+                                if (state.hasPermission) "这里没有模型压缩包\n把 zip 放进存储里任意目录"
+                                else "这里没有模型压缩包\n把 zip 推进 translate 目录"
+                            }
                             state.hasPermission -> "这里没有文件\n词书 JSON 放进存储里任意目录都行"
                             else -> "这里没有 json 文件\n把词书 JSON 放进 books 目录"
                         },
@@ -221,7 +241,8 @@ fun FilePickerScreen(
 
             // 文件条目：与搜单词结果同款的信息列表卡片（主行 + 副信息行）
             items(state.entries, key = { it.file.absolutePath }) { entry ->
-                val supported = entry.isDir || entry.file.extension.equals("json", true)
+                val ext = if (mode == PickerMode.MODEL_ZIP) "zip" else "json"
+                val supported = entry.isDir || entry.file.extension.equals(ext, true)
                 Column(
                     Modifier
                         .fillMaxWidth()

@@ -30,6 +30,7 @@ import androidx.wear.compose.material.Text
 import top.southfish.engrave.ui.components.AnimatedTimeText
 import kotlinx.coroutines.launch
 import top.southfish.engrave.BuildConfig
+import top.southfish.engrave.AppReleaseInfo
 import top.southfish.engrave.domain.model.DefinitionDisplay
 import top.southfish.engrave.ui.components.rememberRotaryScrollable
 import top.southfish.engrave.ui.components.rememberTimeTextVisible
@@ -46,7 +47,8 @@ import top.southfish.engrave.update.UpdateChecker
  * 并在下方给出灰色提示。
  *
  * 检查更新只在点击时联网（不自动检测），查 GitHub Releases（含预发行版），
- * 只认 wearos 包；发现新版本显示更新说明，下载交给浏览器。
+ * 只认本端包（端别标签见 [AppReleaseInfo]，带库版精确到本机 ABI）；
+ * 发现新版本显示更新说明，下载交给浏览器。
  */
 @Composable
 fun OtherSettingsScreen(modifier: Modifier = Modifier) {
@@ -192,7 +194,7 @@ private fun OtherSettingsContent(
                             scope.launch {
                                 updateResult = UpdateChecker(
                                     currentVersion = BuildConfig.VERSION_NAME,
-                                    flavor = "wearos"
+                                    assetTag = AppReleaseInfo.assetTag(context)
                                 ).check()
                                 checking = false
                             }

@@ -5,6 +5,7 @@ import android.database.sqlite.SQLiteDatabase
 import top.southfish.engrave.domain.model.DictEntry
 import top.southfish.engrave.domain.model.ExchangeInfo
 import top.southfish.engrave.domain.model.PhraseEntry
+import top.southfish.engrave.domain.model.RelationEntry
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -260,6 +261,43 @@ class DictRepository(private val context: Context) {
         }
     }
 
+    /**
+     * 同义 / 反义关系（relation 表，数据由 tools/build_relations.py 从 WordNet 生成）。
+     * relType："syn" 近义词 / "ant" 反义词。等值点查，目标词保证在 dict 表中可点跳。
+     */
+    suspend fun relations(term: String, relType: String, limit: Int = 20): List<RelationEntry> {
+        val t = term.trim().lowercase()
+        if (t.isEmpty()) return emptyList()
+        return withContext(Dispatchers.IO) {
+            val db = openDb()
+            val out = mutableListOf<RelationEntry>()
+            db.query(
+                "relation", arrayOf("target", "zh", "rel_type"),
+                "word = ? COLLATE NOCASE AND rel_type = ?",
+                arrayOf(t, relType), null, null, null
+            ).use { cursor ->
+                while (cursor.moveToNext()) {
+                    out.add(
+                        RelationEntry(
+                            term = cursor.getString(0) ?: continue,
+                            zh = cursor.getString(1) ?: "",
+                            relType = cursor.getString(2) ?: relType
+                        )
+                    )
+                }
+            }
+            out.take(limit)
+        }
+    }
+
+    /** 详情页「近义词」段。 */
+    suspend fun synonyms(term: String, limit: Int = 20): List<RelationEntry> =
+        relations(term, REL_SYN, limit)
+
+    /** 详情页「反义词」段。 */
+    suspend fun antonyms(term: String, limit: Int = 20): List<RelationEntry> =
+        relations(term, REL_ANT, limit)
+
     private fun queryEntries(
         db: SQLiteDatabase,
         selection: String,
@@ -293,7 +331,12 @@ class DictRepository(private val context: Context) {
         const val DICT_FILE = "ecdict_core.db"
         const val ASSET_PATH = "dict/ecdict_core.db"
         // 2: 新增 phrase 表（build_phrases.py）
-        const val DICT_VERSION = 2
+        // 3: 新增 relation 表（build_relations.py，同义/反义）
+        const val DICT_VERSION = 3
+
+        /** relation 表 rel_type 取值。 */
+        const val REL_SYN = "syn"
+        const val REL_ANT = "ant"
 
         private const val DEFAULT_LIMIT = 30
 

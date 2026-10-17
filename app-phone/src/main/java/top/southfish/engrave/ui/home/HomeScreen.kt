@@ -200,7 +200,8 @@ private fun HomeContent(
             Button(
                 onClick = onOpenMistakes,
                 colors = androidx.compose.material3.ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.surface
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    contentColor = MaterialTheme.colorScheme.onSurface
                 ),
                 modifier = Modifier
                     .fillMaxWidth()

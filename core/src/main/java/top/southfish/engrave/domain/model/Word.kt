@@ -70,6 +70,16 @@ data class PhraseEntry(
 )
 
 /**
+ * 词典里的一条同义/反义关系（relation 表）。relType 为 "syn"（近义词）或 "ant"（反义词）；
+ * term 为目标词（保证存在于 dict 表中，详情页可点跳），zh 为该目标词的中文释义首行。
+ */
+data class RelationEntry(
+    val term: String,
+    val zh: String,
+    val relType: String
+)
+
+/**
  * 一个词的原型/变形信息，由 DictRepository.parseExchange 从 exchange 字段解出。
  * lemma：该词的原型（若该词本身是变形词）；selfRelation：该词相对原型的关系码；
  * forms：该词自身列出的各变形（关系码 → 变形词）。

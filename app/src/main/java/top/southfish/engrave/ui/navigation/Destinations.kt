@@ -26,6 +26,12 @@ object Destinations {
     /** 头像照片选择（应用内 MediaStore 浏览器，绕开手表上不可用的系统选图器）。 */
     const val AVATAR_PICKER = "avatar_picker"
 
+    /** 整句翻译：搜索页长按搜索框进入（仅带翻译版 withTrans 有该入口）。 */
+    const val TRANSLATE = "translate"
+
+    /** 翻译历史：本步仅预留路由常量，页面与存储待后续实现。 */
+    const val TRANSLATE_HISTORY = "translate_history"
+
     /**
      * 词详情，携带词头。DETAIL 与 DETAIL_ALT 内容相同、成对交替使用：
      * wear-compose-navigation 1.2.1 的 SwipeDismissableNavHost 用路由 pattern

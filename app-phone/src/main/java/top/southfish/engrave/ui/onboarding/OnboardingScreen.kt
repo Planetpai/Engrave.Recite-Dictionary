@@ -171,7 +171,8 @@ fun OnboardingScreen(
                             Button(
                                 onClick = onOpenData,
                                 colors = ButtonDefaults.buttonColors(
-                                    containerColor = MaterialTheme.colorScheme.surface
+                                    containerColor = MaterialTheme.colorScheme.surface,
+                                    contentColor = MaterialTheme.colorScheme.onSurface
                                 ),
                                 modifier = Modifier
                                     .fillMaxWidth()

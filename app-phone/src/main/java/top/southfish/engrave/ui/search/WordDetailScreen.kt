@@ -216,6 +216,41 @@ fun WordDetailScreen(
                     }
                 }
 
+                // 近义词 / 反义词：数据来自 WordNet（relation 表），点击跳该词详情。
+                if (state.synonyms.isNotEmpty()) {
+                    item { ListHeader { Text("近义词") } }
+                    state.synonyms.forEach { r ->
+                        item {
+                            Text(
+                                text = relationLine(r),
+                                style = MaterialTheme.typography.bodyMedium,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .clickable { onOpenWord(r.term) }
+                                    .padding(horizontal = 16.dp, vertical = 1.dp)
+                            )
+                        }
+                    }
+                }
+
+                if (state.antonyms.isNotEmpty()) {
+                    item { ListHeader { Text("反义词") } }
+                    state.antonyms.forEach { r ->
+                        item {
+                            Text(
+                                text = relationLine(r),
+                                style = MaterialTheme.typography.bodyMedium,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .clickable { onOpenWord(r.term) }
+                                    .padding(horizontal = 16.dp, vertical = 1.dp)
+                            )
+                        }
+                    }
+                }
+
                 state.bookWord?.example?.let { example ->
                     item { ListHeader { Text("例句") } }
                     item {
@@ -304,6 +339,10 @@ private fun PhraseRow(phrase: String, zh: String, onClick: () -> Unit) {
         }
     }
 }
+
+/** 近义/反义行：目标词 + 中文释义首行。 */
+private fun relationLine(entry: top.southfish.engrave.domain.model.RelationEntry): String =
+    entry.term + if (entry.zh.isBlank()) "" else "  ${entry.zh}"
 
 /** 派生行：differently (adv.) 不同地。词性从释义开头推断（ECDICT 惯例）。 */
 private fun derivedLine(entry: top.southfish.engrave.domain.model.DictEntry): String {

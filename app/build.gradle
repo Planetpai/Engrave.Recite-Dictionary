@@ -21,6 +21,24 @@ android {
 
     buildFeatures { buildConfig true }
 
+    /**
+     * 翻译功能双版本：
+     * - noTrans：不含 ONNX/MLKit 依赖、无「长按进翻译页」入口，体积最小 → 用于上架
+     * - withTrans：含离线翻译（ONNX Marian + Google ML Kit 可选引擎）→ 仅侧载
+     * 依赖只在 withTrans 挂载（见 dependencies 段），BuildConfig.WITH_TRANS 供运行时判断入口。
+     */
+    flavorDimensions 'trans'
+    productFlavors {
+        noTrans {
+            dimension 'trans'
+            buildConfigField "boolean", "WITH_TRANS", "false"
+        }
+        withTrans {
+            dimension 'trans'
+            buildConfigField "boolean", "WITH_TRANS", "true"
+        }
+    }
+
     buildTypes {
         release {
             minifyEnabled true
@@ -29,12 +47,21 @@ android {
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
-    // release 产物统一命名 Engrave-版本号-wearos.apk：
-    // 「检查更新」按资产名正则 Engrave-版本号-端别.apk 匹配新版本
+    // release 产物统一命名 Engrave-版本号-wearos-版本-abi.apk：
+    // noTrans → Engrave-<v>-wearos-notrans-v7a.apk / -v8a.apk（无原生库，两包内容完全相同）
+    // withTrans → Engrave-<v>-wearos-withtrans-v7a.apk / -v8a.apk
+    // 两个 flavor 都带 abi 段：AGP 的 ABI 拆分是全局开关、无法只对某个 flavor 关掉，
+    // 若 noTrans 不带 abi 段，v7a/v8a 两个产物会写同一个文件名，第二个必然打包失败。
+    // 「检查更新」按资产名匹配本端包（见 UpdateChecker 与 AppReleaseInfo，
+    // 二者都已允许 noTrans 标签带 -v7a/-v8a 尾巴）
     applicationVariants.all { variant ->
-        variant.outputs.all {
+        variant.outputs.all { output ->
             if (variant.buildType.name == 'release') {
-                outputFileName = "Engrave-${variant.versionName}-wearos.apk"
+                def abiTag = (output.getFilter(com.android.build.OutputFile.ABI) ?: "") as String
+                def abiSuffix = abiTag.isEmpty() ? "" :
+                    "-" + abiTag.replace("armeabi-v7a", "v7a").replace("arm64-v8a", "v8a")
+                outputFileName =
+                    "Engrave-${variant.versionName}-wearos-${variant.flavorName.toLowerCase()}${abiSuffix}.apk"
             }
         }
     }
@@ -59,6 +86,31 @@ android {
         // 其过期告警不应阻断 release 打包
         abortOnError false
         checkReleaseBuilds false
+    }
+
+    // ABI 拆分：目标手表系统 32 位、指令集支持 64 位 → withTrans 的 ONNX 原生库
+    // 按 v7a/v8a 分别出包。AGP 8.2 只支持全局拆分（无 variant 级 API），
+    // noTrans 无原生库，其两个 split 产物内容相同（发版只取其一）
+    splits {
+        abi {
+            enable true
+            reset()
+            include 'armeabi-v7a', 'arm64-v8a'
+            universalApk false
+        }
+    }
+
+    // 剔除翻译依赖里的「桌面死重」：
+    // - ai.djl.huggingface:tokenizers 的 AAR 里带了 win/mac/linux 各平台原生分词库
+    //   （native 目录下，单个 11MB 级）。Android 走 ai.djl.android:tokenizer-native
+    //   提供的 jni 原生库（打包成 lib/<abi>/），桌面那套运行时根本用不到。
+    // - JNA（DJL api 的传递依赖）在 com/sun/jna 目录下塞了各平台 dispatch 原生库；
+    //   本项目 Android 分支不走 JNA。
+    // 只在资源层排除（不影响 dex 里的类），noTrans 命中不了这些路径、天然无影响。
+    packagingOptions {
+        resources {
+            excludes += ['native/**', 'com/sun/jna/**']
+        }
     }
 }
 
@@ -110,6 +162,17 @@ dependencies {
 
     // Coroutines
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3'
+
+    // 离线整句翻译（仅带翻译版）：ONNX Runtime 跑 Marian 模型；Google ML Kit 为可选引擎
+    // （依赖只挂 withTrans，noTrans 完全不引入，保证上架包体积）
+    withTransImplementation 'com.microsoft.onnxruntime:onnxruntime-android:1.18.0'
+    withTransImplementation 'com.google.mlkit:translate:17.0.2'
+    // Marian 分词器：DJL 的 Java 侧读 tokenizer.json，Android 侧原生库直接走
+    // System.loadLibrary("djl_tokenizer")（不依赖 JNA）。两个版本必须锁死 0.33.0——
+    // tokenizer-native 在 Maven Central 只有这一个版本。单 ABI 增量：
+    // arm64-v8a +8.06MB / armeabi-v7a +4.95MB（x86/x86_64 供模拟器，ABI 拆分时被剔除）
+    withTransImplementation 'ai.djl.huggingface:tokenizers:0.33.0'
+    withTransImplementation 'ai.djl.android:tokenizer-native:0.33.0'
 
     testImplementation 'junit:junit:4.13.2'
     testImplementation 'org.jetbrains.kotlinx:kotlinx-coroutines-test:1.7.3'

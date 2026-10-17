@@ -21,8 +21,8 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-/** 文件选择器的导入用途：词书管理导入单本词书；数据管理恢复整包备份。 */
-enum class PickerMode { BOOK, BACKUP }
+/** 文件选择器的导入用途：词书管理导入单本词书；数据管理恢复整包备份；离线翻译导入模型 zip。 */
+enum class PickerMode { BOOK, BACKUP, MODEL_ZIP }
 
 data class PickerEntry(
     val file: File,
@@ -43,7 +43,9 @@ data class FilePickerUiState(
     /** 当前目录无法读取（listFiles 返回 null，如系统受限目录）。 */
     val denied: Boolean = false,
     /** 备份模式下待确认的文件（全量恢复是破坏性操作，必须二次确认）。 */
-    val pendingConfirmFile: File? = null
+    val pendingConfirmFile: File? = null,
+    /** 翻译模型模式下用户选中的 zip，交给调用方（翻译页）自行解包导入。 */
+    val pickedFile: File? = null
 )
 
 /**
@@ -77,8 +79,10 @@ class FilePickerViewModel(
         if (granted) {
             Environment.getExternalStorageDirectory()
         } else {
-            // getExternalFilesDir 无需任何运行时权限即可读写
-            (appContext.getExternalFilesDir("books") ?: File(appContext.filesDir, "books"))
+            // getExternalFilesDir 无需任何运行时权限即可读写。
+            // 目录名按用途分开，避免把翻译模型包推进词书目录里找不着
+            val sub = if (mode == PickerMode.MODEL_ZIP) "translate" else "books"
+            (appContext.getExternalFilesDir(sub) ?: File(appContext.filesDir, sub))
                 .apply { runCatching { mkdirs() } }
         }
 
@@ -128,10 +132,10 @@ class FilePickerViewModel(
                                     detail = if (f.isDirectory) {
                                         val count = f.listFiles()?.size ?: 0
                                         "文件夹 · $count 项"
-                                    } else if (f.extension.equals("json", true)) {
+                                    } else if (f.extension.lowercase(Locale.ROOT) in acceptedExtensions()) {
                                         "${formatSize(f.length())} · ${dateFormat.format(Date(f.lastModified()))}"
                                     } else {
-                                        "${formatSize(f.length())} · 仅支持导入 .json"
+                                        "${formatSize(f.length())} · 仅支持导入 ${acceptHint()}"
                                     }
                                 )
                             }
@@ -145,21 +149,31 @@ class FilePickerViewModel(
         }
     }
 
-    /** 条目点击：文件夹进入；json 才能导入（其他文件提示）；备份模式校验后弹确认。 */
+    /** 条目点击：文件夹进入；本模式支持的后缀才能选中（其他文件提示）；备份模式校验后弹确认。 */
     fun onEntryTap(entry: PickerEntry) {
         if (entry.isDir) {
             openDir(entry.file)
             return
         }
-        if (!entry.file.extension.equals("json", true)) {
-            state.value = state.value.copy(message = "只支持导入 .json 文件")
+        if (entry.file.extension.lowercase(Locale.ROOT) !in acceptedExtensions()) {
+            state.value = state.value.copy(message = "只支持导入 ${acceptHint()} 文件")
             return
         }
         when (mode) {
             PickerMode.BOOK -> importBook(entry.file)
             PickerMode.BACKUP -> requestBackupImport(entry.file)
+            // 翻译模型：只把选中的文件交回调用方，解包与落盘由翻译页自己做
+            PickerMode.MODEL_ZIP -> state.value = state.value.copy(pickedFile = entry.file, message = null)
         }
     }
+
+    /** 本模式下可选中的文件后缀。 */
+    private fun acceptedExtensions(): Set<String> =
+        if (mode == PickerMode.MODEL_ZIP) setOf("zip") else setOf("json")
+
+    /** 提示文案里的后缀列表。 */
+    private fun acceptHint(): String =
+        if (mode == PickerMode.MODEL_ZIP) ".zip" else ".json"
 
     private fun importBook(file: File) {
         if (state.value.busy) return

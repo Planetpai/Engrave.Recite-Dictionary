@@ -38,6 +38,7 @@ import top.southfish.engrave.ui.settings.OtherSettingsScreen
 import top.southfish.engrave.ui.settings.StudySettingsScreen
 import top.southfish.engrave.ui.stats.StatsScreen
 import top.southfish.engrave.ui.study.StudyScreen
+import top.southfish.engrave.ui.translate.TranslateScreen
 import top.southfish.engrave.ui.tutorial.TutorialScreen
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.firstOrNull
@@ -221,8 +222,13 @@ private fun AppNavHost(
                 SearchScreen(
                     onOpenWord = { term ->
                         navController.navigate(Destinations.detail(term))
-                    }
+                    },
+                    onOpenTranslate = { navController.navigate(Destinations.TRANSLATE) }
                 )
+            }
+
+            composable(Destinations.TRANSLATE) {
+                TranslateScreen()
             }
 
             composable(Destinations.DETAIL) { entry ->
