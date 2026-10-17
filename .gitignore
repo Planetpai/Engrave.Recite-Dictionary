@@ -31,8 +31,17 @@ Desktop.ini
 _备份/
 _旧文件待删除/
 _video/
+# 工作用临时目录：打包脚本的中间产物、模型资产暂存、随手放的备份/录屏
+# （发版的 APK 与模型 zip 只作为 Release 资产上传，不进版本库）
+_tmp/
+_backup/
+_20svideo/
 手表安装包/
 wordbook-source/
 *.apk
 *.log
 .vscode/
+
+# ---------- Python 工具（tools/ 下的构建脚本） ----------
+__pycache__/
+*.pyc
